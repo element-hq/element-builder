@@ -1,0 +1,10 @@
+{
+  "name": "riot-builder",
+  "version": "0.0.1",
+  "description": "A very minimal auto-builder for Riot",
+  "main": "src/index.js",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "rimraf": "^3.0.2"
+  }
+}
