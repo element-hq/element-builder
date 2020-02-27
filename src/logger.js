@@ -62,7 +62,6 @@ async function log(level, ...args) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Content-Length': evData.length,
                 'Authorization': 'Bearer ' + mxAccessToken,
             },
         }, (res) => {
