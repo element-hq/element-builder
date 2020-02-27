@@ -142,8 +142,6 @@ class DesktopDevelopBuilder {
         await repo.clone(DESKTOP_GIT_REPO, repoDir);
         // NB. we stay on the 'master' branch of the riot-desktop
         // repo (and fetch the develop version of riot-web later)
-        // XXX If you're reading this I committed this by accident
-        await repo.checkout('dbkr/setversion_mk_2');
         logger.info("...checked out 'develop' branch, starting build for " + type);
 
         await this.writeElectronBuilderConfigFile(repoDir, buildVersion);
@@ -166,7 +164,7 @@ class DesktopDevelopBuilder {
         const runner = new Runner(path);
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check');
-        //await runner.run('yarn', 'run', 'build:native');
+        await runner.run('yarn', 'run', 'build:native');
         await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im');
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
