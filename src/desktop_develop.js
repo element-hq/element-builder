@@ -60,7 +60,7 @@ async function putLastBuildTime(type, t) {
 }
 
 function getBuildVersion() {
-    // YYYMMDDNNN where NNN is in case we need to do multiple versions in a day
+    // YYYYMMDDNNN where NNN is in case we need to do multiple versions in a day
     const now = new Date();
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const date = (now.getDate() + 1).toString().padStart(2, '0');
