@@ -16,12 +16,14 @@ limitations under the License.
 
 const https = require('https');
 
+let baseUrl;
 let mxAccessToken;
 let mxRoomId;
 
-function setup(accessToken, roomId) {
-    mxAccessToken = accessToken;
+function setup(matrixServer, roomId, accessToken) {
+    baseUrl = matrixServer;
     mxRoomId = roomId;
+    mxAccessToken = accessToken;
 }
 
 function error(...args) {
@@ -42,6 +44,33 @@ function debug(...args) {
 
 async function log(level, ...args) {
     console[level](...args);
+
+    if (baseUrl === undefined) return;
+
+    // log to matrix in the simplest possible way: If it fails, forget it and we lose
+    // the log message, and we wait while it completes, so if the server is slow, the
+    // build goes slower.
+    const ev = {
+        msgtype: 'm.notice',
+        body: args[0],
+    };
+    const evData = JSON.stringify(ev);
+
+    const url = baseUrl + "/_matrix/client/r0/rooms/" + encodeURIComponent(mxRoomId) + "/send/m.room.message";
+    await new Promise((resolve) => {
+        const req = https.request(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': evData.length,
+                'Authorization': 'Bearer ' + mxAccessToken,
+            },
+        }, (res) => {
+            res.on('end', resolve);
+        });
+        req.write(evData);
+        req.end();
+    });
 }
 
 module.exports = {setup, error, warn, info, debug};

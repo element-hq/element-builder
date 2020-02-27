@@ -19,7 +19,13 @@ limitations under the License.
 const logger = require('./logger');
 const DesktopDevelopBuilder = require('./desktop_develop');
 
-//logger.setup();
+if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env.RIOTBUILD_ACCESS_TOKEN) {
+    console.log("Logging to console + Matrix");
+    logger.setup(process.env.RIOTBUILD_BASEURL, process.env.RIOTBUILD_ROOMID, process.env.RIOTBUILD_ACCESS_TOKEN);
+} else {
+    console.log("No Matrix credentials in environment: logging to console only");
+}
 
 const desktopDevelopBuilder = new DesktopDevelopBuilder();
+logger.info("Starting Desktop/develop builder");
 desktopDevelopBuilder.start();
