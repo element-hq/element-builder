@@ -20,10 +20,12 @@ const path = require('path');
 const rimraf = require('rimraf');
 
 const GitRepo = require('./gitrepo');
-const Runner = require('./runner');
 const logger = require('./logger');
 
-const TYPES = ['mac'];
+const Runner = require('./runner');
+const DockerRunner = require('./docker_runner');
+
+const TYPES = ['mac', 'linux'];
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/riot-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -146,26 +148,40 @@ class DesktopDevelopBuilder {
 
         await this.writeElectronBuilderConfigFile(repoDir, buildVersion);
         
+        let runner;
         switch (type) {
             case 'mac':
-                await this.buildMac(repoDir);
+                runner =  this.makeMacRunner(repoDir);
                 break;
             case 'linux':
-                await this.buildLinux(repoDir);
+                runner =  this.makeLinuxRunner(repoDir);
                 break;
             case 'win':
-                await this.buildWin(repoDir);
+                runner =  this.makeWinRunner(repoDir);
                 break;
         }
+
+        await this.buildWithRunner(runner, buildVersion);
+
         logger.info("Build completed!");
     }
 
-    async buildMac(path) {
-        const runner = new Runner(path);
+    makeMacRunner(cwd) {
+        return new Runner(cwd);
+    }
+
+    makeLinuxRunner(cwd) {
+        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'));
+    }
+
+    async buildWithRunner(runner, buildVersion) {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check');
-        await runner.run('yarn', 'run', 'build:native');
+        //await runner.run('yarn', 'run', 'build:native');
         await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im');
+        // This part only actually necessary for the Debian package, but no harm
+        // in doing it for other platforms
+        await runner.run('scripts/set-version.js', '--deb', buildVersion);
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 }
