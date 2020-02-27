@@ -27,5 +27,4 @@ if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env
 }
 
 const desktopDevelopBuilder = new DesktopDevelopBuilder();
-logger.info("Starting Desktop/develop builder");
 desktopDevelopBuilder.start();
