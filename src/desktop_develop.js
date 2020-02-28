@@ -147,17 +147,17 @@ class DesktopDevelopBuilder {
         logger.info("...checked out 'develop' branch, starting build for " + type);
 
         await this.writeElectronBuilderConfigFile(repoDir, buildVersion);
-        
+
         let runner;
         switch (type) {
             case 'mac':
-                runner =  this.makeMacRunner(repoDir);
+                runner = this.makeMacRunner(repoDir);
                 break;
             case 'linux':
-                runner =  this.makeLinuxRunner(repoDir);
+                runner = this.makeLinuxRunner(repoDir);
                 break;
             case 'win':
-                runner =  this.makeWinRunner(repoDir);
+                runner = this.makeWinRunner(repoDir);
                 break;
         }
 
