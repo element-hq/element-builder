@@ -171,7 +171,6 @@ class DesktopDevelopBuilder {
         await repo.clone(DESKTOP_GIT_REPO, repoDir);
         // NB. we stay on the 'master' branch of the riot-desktop
         // repo (and fetch the develop version of riot-web later)
-        //await repo.checkout('');
         logger.info("...checked out 'develop' branch, starting build for " + type);
 
         await this.writeElectronBuilderConfigFile(repoDir, buildVersion);
