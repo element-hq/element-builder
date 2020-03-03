@@ -26,5 +26,21 @@ if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env
     console.log("No Matrix credentials in environment: logging to console only");
 }
 
-const desktopDevelopBuilder = new DesktopDevelopBuilder();
+const winVmName = process.env.RIOTBUILD_WIN_VMNAME;
+const winUsername = process.env.RIOTBUILD_WIN_USERNAME;
+const winPassword = process.env.RIOTBUILD_WIN_PASSWORD;
+
+if (
+    winVmName === undefined ||
+    winUsername === undefined ||
+    winPassword === undefined
+) {
+    console.error(
+        "No windows credentials set: define RIOTBUILD_WIN_VMNAME, " +
+        "RIOTBUILD_WIN_USERNAME and RIOTBUILD_WIN_PASSWORD",
+    );
+    process.exit(1);
+}
+
+const desktopDevelopBuilder = new DesktopDevelopBuilder(winVmName, winUsername, winPassword);
 desktopDevelopBuilder.start();
