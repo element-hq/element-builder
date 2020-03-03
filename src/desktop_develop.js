@@ -244,7 +244,9 @@ class DesktopDevelopBuilder {
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
             builder.appendScript('call', 'yarn', 'run', 'build:native');
             builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'riot.im');
-            builder.appendScript('call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE);
+            builder.appendScript(
+                'call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE,
+            );
             builder.appendScript('xcopy dist z:\\dist /S /I /Y');
             builder.appendScript('cd', '..');
             builder.appendScript('rd', repoDir, '/s', '/q');
