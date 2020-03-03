@@ -173,7 +173,8 @@ class WindowsBuilder {
         await fsProm.writeFile(tmpCmdFile, fileContents);
 
         try {
-            return this._run('z:\\tmp.cmd');
+            const ret = await this._run('z:\\tmp.cmd');
+            return ret;
         } finally {
             await fsProm.unlink(tmpCmdFile);
         }
