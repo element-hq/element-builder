@@ -19,6 +19,7 @@ const path = require('path');
 
 const rimraf = require('rimraf');
 
+const getSecret = require('./get_secret');
 const GitRepo = require('./gitrepo');
 const logger = require('./logger');
 
@@ -210,6 +211,12 @@ class DesktopDevelopBuilder {
     }
 
     async buildWin(type, buildVersion) {
+        // get the token passphrase now so we fail early if it's not in the keychain
+        // NB. We supply the passphrase via a barely-documented feature of signtool
+        // where it can parse it out of the name of the key container, so this
+        // is actually the key container in the format [{{passphrase}}]=container
+        const riotSigningKeyContainer = await getSecret('riot_key_container');
+
         const repoDir = 'riot-desktop-' + type + '-' + buildVersion;
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
@@ -226,7 +233,7 @@ class DesktopDevelopBuilder {
         await this.writeElectronBuilderConfigFile(repoDir, buildVersion);
 
         const builder = new WindowsBuilder(
-            repoDir, type, this.winVmName, this.winUsername, this.winPassword,
+            repoDir, type, this.winVmName, this.winUsername, this.winPassword, riotSigningKeyContainer,
         );
 
         console.log("Starting Windows builder for " + type);

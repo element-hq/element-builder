@@ -36,12 +36,13 @@ const VCVARSALL = (
  * takes quite a long time).
  */
 class WindowsBuilder {
-    constructor(cwd, arch, vmName, username, password) {
+    constructor(cwd, arch, vmName, username, password, keyContainer) {
         this.cwd = cwd;
         this.arch = arch;
         this.vmName = vmName;
         this.username = username;
         this.password = password;
+        this.keyContainer = keyContainer;
         this.script = '';
     }
 
@@ -189,6 +190,7 @@ class WindowsBuilder {
             '--password', this.password,
             'run',
             '-E', 'BUILDKITE_API_KEY='+process.env.BUILDKITE_API_KEY,
+            '-E', 'SIGNING_KEY_CONTAINER='+this.keyContainer,
             '--exe', 'cmd.exe', // The executable file to run
             '--', // Tell virtualbox to pass everything else through
             // The name of the program (basically arg0) (unsure why
