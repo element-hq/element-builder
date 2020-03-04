@@ -244,7 +244,8 @@ class DesktopDevelopBuilder {
         try {
             builder.appendScript('rd', repoDir, '/s', '/q');
             builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, repoDir);
-            builder.appendScript('cd', repoDir);
+        await repo.checkout('dbkr/winsign');
+            builder.appendScript('git', 'checkout', 'dbkr/winsign');
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
