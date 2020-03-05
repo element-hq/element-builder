@@ -16,6 +16,7 @@ limitations under the License.
 
 const fsProm = require('fs').promises;
 const path = require('path');
+const childProcess = require('child_process');
 
 const rimraf = require('rimraf');
 
@@ -75,11 +76,84 @@ function getBuildVersion() {
     return now.getFullYear() + month + date + buildNum;
 }
 
+async function getMatchingFilesInDir(dir, exp) {
+    const ret = [];
+    for (const f of await fsProm.readdir(dir)) {
+        if (exp.test(f)) {
+            ret.push(f);
+        }
+    }
+    if (ret.length === 0) throw new Error("No files found matching " + exp.toString() + "!");
+    return ret;
+}
+
+async function getRepoTargets(repoDir) {
+    const confDistributions = await fsProm.readFile(path.join(repoDir, 'conf', 'distributions'), 'utf8');
+    const ret = [];
+    for (const line of confDistributions.split('\n')) {
+        if (line.startsWith('Codename')) {
+            ret.push(line.split(': ')[1]);
+        }
+    }
+    return ret;
+}
+
+function pullDebRepo(repoDir, rsyncRoot) {
+    logger.info("Pulling debian repo...");
+    return new Promise((resolve, reject) => {
+        const proc = childProcess.spawn('rsync', [
+            '-av', '--delete', rsyncRoot + 'debian/', repoDir,
+        ], {
+            stdio: 'inherit',
+        });
+        proc.on('exit', code => {
+            code ? reject(code) : resolve();
+        });
+    });
+}
+
+async function addDeb(repoDir, deb) {
+    const targets = await getRepoTargets(repoDir);
+    logger.info("Adding " + deb + " for " + targets.join(', ') + "...");
+    for (const target of targets) {
+        await new Promise((resolve, reject) => {
+            const proc = childProcess.spawn('reprepro', [
+                'includedeb', target, deb,
+            ], {
+                stdio: 'inherit',
+                cwd: repoDir,
+            });
+            proc.on('exit', code => {
+                code ? reject(code) : resolve();
+            });
+        });
+    }
+}
+
+function pushArtifacts(pubDir, rsyncRoot) {
+    logger.info("Uploading artifacts...");
+    return new Promise((resolve, reject) => {
+        const proc = childProcess.spawn('rsync', [
+            '-av', '--delay-updates', pubDir + '/', rsyncRoot,
+        ], {
+            stdio: 'inherit',
+        });
+        proc.on('exit', code => {
+            code ? reject(code) : resolve();
+        });
+    });
+}
+
 class DesktopDevelopBuilder {
-    constructor(winVmName, winUsername, winPassword) {
+    constructor(winVmName, winUsername, winPassword, rsyncRoot) {
         this.winVmName = winVmName;
         this.winUsername = winUsername;
         this.winPassword = winPassword;
+        this.rsyncRoot = rsyncRoot;
+
+        this.pubDir = path.join(process.cwd(), 'pub');
+        this.repoDir = path.join(this.pubDir, 'debian');
+        this.appPubDir = path.join(this.pubDir, 'nightly');
     }
 
     async start() {
@@ -100,6 +174,7 @@ class DesktopDevelopBuilder {
     poll = async () => {
         if (this.building) return;
 
+        const built = [];
         for (const type of TYPES) {
             const nextBuildDue = getNextBuildTime(new Date(Math.max(
                 this.lastBuildTimes[type], this.lastFailTimes[type],
@@ -111,30 +186,47 @@ class DesktopDevelopBuilder {
                     logger.info("Starting build of " + type);
                     const thisBuildVersion = getBuildVersion();
                     await this.build(type, thisBuildVersion);
+                    built.push(type);
                     this.lastBuildTimes[type] = Date.now();
                     await putLastBuildTime(type, this.lastBuildTimes[type]);
                 } catch (e) {
                     logger.error("Build failed!", e);
                     this.lastFailTimes[type] = Date.now();
+                    // if one fails, bail out of the whole process: probably better
+                    // to have all platforms not updating than just one
+                    return;
                 } finally {
                     this.building = false;
                 }
             }
         }
+
+        if (built.length > 0) {
+            logger.info("Built packages for: " + built.join(', ') + ": pushing packages...");
+            await pushArtifacts(this.pubDir, this.rsyncRoot);
+            logger.info("...push complete!");
+        }
     }
 
-    async writeElectronBuilderConfigFile(repoDir, buildVersion) {
+    async writeElectronBuilderConfigFile(type, repoDir, buildVersion) {
         // Electron builder doesn't overlay with the config in package.json,
         // so load it here
         const cfg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).build;
+
+        // the windows packager relies on parsing this as semver, so we have
+        // to make it looks like one. This will give our update packages really
+        // stupid names but we probably can't change that either because squirrel
+        // windows parses them for the version too. We don't really care: nobody
+        // sees them. We just give the installer a static name, so you'll just
+        // see this in the 'about' dialog.
+        const version = type.startsWith('win') ? '0.0.0-nightly.' + buildVersion : buildVersion;
 
         Object.assign(cfg, {
             // We override a lot of the metadata for the nightly build
             extraMetadata: {
                 name: "riot-desktop-nightly",
                 productName: "Riot Nightly",
-                // the windows packager relies on parsing this as semver :(
-                version: '0.0.0-nightly.' + buildVersion,
+                version,
             },
             appId: "im.riot.nightly",
             win: Object.assign({
@@ -171,9 +263,9 @@ class DesktopDevelopBuilder {
         await repo.clone(DESKTOP_GIT_REPO, repoDir);
         // NB. we stay on the 'master' branch of the riot-desktop
         // repo (and fetch the develop version of riot-web later)
-        logger.info("...checked out 'develop' branch, starting build for " + type);
+        logger.info("...checked out 'master' branch, starting build for " + type);
 
-        await this.writeElectronBuilderConfigFile(repoDir, buildVersion);
+        await this.writeElectronBuilderConfigFile(type, repoDir, buildVersion);
 
         let runner;
         switch (type) {
@@ -187,6 +279,24 @@ class DesktopDevelopBuilder {
 
         await this.buildWithRunner(runner, buildVersion, type);
         logger.info("Build completed!");
+
+        if (type === 'mac') {
+            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
+
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
+                await fsProm.copyFile(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'install', 'macos', f));
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
+                await fsProm.copyFile(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
+            }
+            await fsProm.writeFile(path.join(this.appPubDir, 'update', 'macos', 'latest'), buildVersion);
+        } else if (type === 'linux') {
+            await pullDebRepo(this.repoDir, this.rsyncRoot);
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
+                await addDeb(this.repoDir, path.resolve(repoDir, 'dist', f));
+            }
+        }
     }
 
     makeMacRunner(cwd) {
@@ -223,7 +333,7 @@ class DesktopDevelopBuilder {
         const repo = new GitRepo(repoDir);
         await repo.clone(DESKTOP_GIT_REPO, repoDir);
         //await fsProm.mkdir(repoDir);
-        await this.writeElectronBuilderConfigFile(repoDir, buildVersion);
+        await this.writeElectronBuilderConfigFile(type, repoDir, buildVersion);
 
         const builder = new WindowsBuilder(
             repoDir, type, this.winVmName, this.winUsername, this.winPassword,
@@ -253,6 +363,31 @@ class DesktopDevelopBuilder {
             console.log("Starting build...");
             await builder.runScript();
             console.log("Build complete!");
+
+            const squirrelDir = 'squirrel-windows' + (type === 'win32' ? '-ia32' : '');
+            const archDir = type === 'win32' ? 'ia32' : 'x64';
+
+            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
+
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
+                await fsProm.copyFile(
+                    path.join(repoDir, 'dist', squirrelDir, f),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, 'Riot Nightly Setup.exe'),
+                );
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
+                await fsProm.copyFile(
+                    path.join(repoDir, 'dist', squirrelDir, f),
+                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                );
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
+                await fsProm.copyFile(
+                    path.join(repoDir, 'dist', squirrelDir, f),
+                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                );
+            }
         } finally {
             await builder.stop();
         }
