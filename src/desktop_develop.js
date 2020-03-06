@@ -87,6 +87,15 @@ class DesktopDevelopBuilder {
         logger.info("Starting Desktop/develop builder...");
         this.building = false;
 
+        // get the token passphrase now so a) we fail early if it's not in the keychain
+        // and b) we know the keychain is unlocked because someone's sitting at the
+        // computer to start the builder.
+        // NB. We supply the passphrase via a barely-documented feature of signtool
+        // where it can parse it out of the name of the key container, so this
+        // is actually the key container in the format [{{passphrase}}]=container
+        this.riotSigningKeyContainer = await getSecret('riot_key_container');
+
+
         this.lastBuildTimes = {};
         this.lastFailTimes = {};
         for (const type of TYPES) {
@@ -204,12 +213,6 @@ class DesktopDevelopBuilder {
     }
 
     async buildWin(type, buildVersion) {
-        // get the token passphrase now so we fail early if it's not in the keychain
-        // NB. We supply the passphrase via a barely-documented feature of signtool
-        // where it can parse it out of the name of the key container, so this
-        // is actually the key container in the format [{{passphrase}}]=container
-        const riotSigningKeyContainer = await getSecret('riot_key_container');
-
         const repoDir = 'riot-desktop-' + type + '-' + buildVersion;
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
@@ -226,7 +229,7 @@ class DesktopDevelopBuilder {
         await this.writeElectronBuilderConfigFile(repoDir, buildVersion);
 
         const builder = new WindowsBuilder(
-            repoDir, type, this.winVmName, this.winUsername, this.winPassword, riotSigningKeyContainer,
+            repoDir, type, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
         );
 
         console.log("Starting Windows builder for " + type);
