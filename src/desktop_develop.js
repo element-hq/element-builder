@@ -153,7 +153,9 @@ class DesktopDevelopBuilder {
         this.rsyncRoot = rsyncRoot;
 
         this.pubDir = path.join(process.cwd(), 'pub');
-        this.repoDir = path.join(this.pubDir, 'debian');
+        // This should be a repropro dir with a config redirecting
+        // the output to pub/debian
+        this.repoDir = path.join(process.cwd(), 'debian');
         this.appPubDir = path.join(this.pubDir, 'nightly');
     }
 
