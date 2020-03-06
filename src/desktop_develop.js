@@ -289,7 +289,12 @@ class DesktopDevelopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
-                await fsProm.copyFile(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'install', 'macos', f));
+                await fsProm.copyFile(
+                    path.join(repoDir, 'dist', f),
+                    // be consistent with windows and don't bother putting the version number
+                    // in the installer
+                    path.join(this.appPubDir, 'install', 'macos', 'Riot Nightly.dmg'),
+                );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
                 await fsProm.copyFile(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
