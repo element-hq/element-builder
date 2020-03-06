@@ -99,11 +99,11 @@ async function getRepoTargets(repoDir) {
     return ret;
 }
 
-function pullDebRepo(repoDir, rsyncRoot) {
+function pullDebRepo(pubDir, rsyncRoot) {
     logger.info("Pulling debian repo...");
     return new Promise((resolve, reject) => {
         const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', rsyncRoot + 'debian/', repoDir,
+            '-av', '--delete', rsyncRoot + 'debian/', path.join(pubDir, 'debian'),
         ], {
             stdio: 'inherit',
         });
@@ -113,8 +113,8 @@ function pullDebRepo(repoDir, rsyncRoot) {
     });
 }
 
-async function addDeb(repoDir, deb) {
-    const targets = await getRepoTargets(repoDir);
+async function addDeb(debDir, deb) {
+    const targets = await getRepoTargets(debDir);
     logger.info("Adding " + deb + " for " + targets.join(', ') + "...");
     for (const target of targets) {
         await new Promise((resolve, reject) => {
@@ -122,7 +122,7 @@ async function addDeb(repoDir, deb) {
                 'includedeb', target, deb,
             ], {
                 stdio: 'inherit',
-                cwd: repoDir,
+                cwd: debDir,
             });
             proc.on('exit', code => {
                 code ? reject(code) : resolve();
@@ -153,9 +153,9 @@ class DesktopDevelopBuilder {
         this.rsyncRoot = rsyncRoot;
 
         this.pubDir = path.join(process.cwd(), 'pub');
-        // This should be a repropro dir with a config redirecting
+        // This should be a reprepro dir with a config redirecting
         // the output to pub/debian
-        this.repoDir = path.join(process.cwd(), 'debian');
+        this.debDir = path.join(process.cwd(), 'debian');
         this.appPubDir = path.join(this.pubDir, 'nightly');
     }
 
@@ -301,9 +301,9 @@ class DesktopDevelopBuilder {
             }
             await fsProm.writeFile(path.join(this.appPubDir, 'update', 'macos', 'latest'), buildVersion);
         } else if (type === 'linux') {
-            await pullDebRepo(this.repoDir, this.rsyncRoot);
+            await pullDebRepo(this.pubDir, this.rsyncRoot);
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
-                await addDeb(this.repoDir, path.resolve(repoDir, 'dist', f));
+                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
             }
         }
     }
