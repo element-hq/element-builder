@@ -138,13 +138,6 @@ class DesktopDevelopBuilder {
                 version: '0.0.0-nightly.' + buildVersion,
             },
             appId: "im.riot.nightly",
-            win: Object.assign({
-                // We keep this in here so the riot-desktop repo will build
-                // for windows unsigned by default and not error if you don't
-                // have our cert installed, which means others can build it
-                // without having to patch package.json
-                certificateSubjectName: "New Vector Ltd",
-            }, cfg.win),
         });
         await fsProm.writeFile(
             path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
