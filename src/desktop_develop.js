@@ -20,6 +20,7 @@ const childProcess = require('child_process');
 
 const rimraf = require('rimraf');
 
+const getSecret = require('./get_secret');
 const GitRepo = require('./gitrepo');
 const logger = require('./logger');
 
@@ -160,6 +161,14 @@ class DesktopDevelopBuilder {
         logger.info("Starting Desktop/develop builder...");
         this.building = false;
 
+        // get the token passphrase now so a) we fail early if it's not in the keychain
+        // and b) we know the keychain is unlocked because someone's sitting at the
+        // computer to start the builder.
+        // NB. We supply the passphrase via a barely-documented feature of signtool
+        // where it can parse it out of the name of the key container, so this
+        // is actually the key container in the format [{{passphrase}}]=container
+        this.riotSigningKeyContainer = await getSecret('riot_key_container');
+
         this.lastBuildTimes = {};
         this.lastFailTimes = {};
         for (const type of TYPES) {
@@ -229,13 +238,6 @@ class DesktopDevelopBuilder {
                 version,
             },
             appId: "im.riot.nightly",
-            win: Object.assign({
-                // We keep this in here so the riot-desktop repo will build
-                // for windows unsigned by default and not error if you don't
-                // have our cert installed, which means others can build it
-                // without having to patch package.json
-                certificateSubjectName: "New Vector Ltd",
-            }, cfg.win),
         });
         await fsProm.writeFile(
             path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
@@ -336,7 +338,7 @@ class DesktopDevelopBuilder {
         await this.writeElectronBuilderConfigFile(type, repoDir, buildVersion);
 
         const builder = new WindowsBuilder(
-            repoDir, type, this.winVmName, this.winUsername, this.winPassword,
+            repoDir, type, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
         );
 
         console.log("Starting Windows builder for " + type);
