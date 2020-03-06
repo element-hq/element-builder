@@ -95,7 +95,6 @@ class DesktopDevelopBuilder {
         // is actually the key container in the format [{{passphrase}}]=container
         this.riotSigningKeyContainer = await getSecret('riot_key_container');
 
-
         this.lastBuildTimes = {};
         this.lastFailTimes = {};
         for (const type of TYPES) {
