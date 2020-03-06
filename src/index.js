@@ -30,6 +30,8 @@ const winVmName = process.env.RIOTBUILD_WIN_VMNAME;
 const winUsername = process.env.RIOTBUILD_WIN_USERNAME;
 const winPassword = process.env.RIOTBUILD_WIN_PASSWORD;
 
+const rsyncServer = process.env.RIOTBUILD_RSYNC_ROOT;
+
 if (
     winVmName === undefined ||
     winUsername === undefined ||
@@ -42,5 +44,10 @@ if (
     process.exit(1);
 }
 
-const desktopDevelopBuilder = new DesktopDevelopBuilder(winVmName, winUsername, winPassword);
+if (rsyncServer === undefined) {
+    console.error("rsync server not set: define RIOTBUILD_RSYNC_ROOT");
+    process.exit(1);
+}
+
+const desktopDevelopBuilder = new DesktopDevelopBuilder(winVmName, winUsername, winPassword, rsyncServer);
 desktopDevelopBuilder.start();
