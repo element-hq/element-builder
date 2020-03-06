@@ -214,7 +214,7 @@ class DesktopDevelopBuilder {
         const cfg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).build;
 
         // the windows packager relies on parsing this as semver, so we have
-        // to make it looks like one. This will give our update packages really
+        // to make it look like one. This will give our update packages really
         // stupid names but we probably can't change that either because squirrel
         // windows parses them for the version too. We don't really care: nobody
         // sees them. We just give the installer a static name, so you'll just
