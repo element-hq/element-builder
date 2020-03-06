@@ -313,7 +313,7 @@ class DesktopDevelopBuilder {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check');
         await runner.run('yarn', 'run', 'build:native');
-        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im');
+        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im/nightly');
         // This part only actually necessary for the Debian package
         if (type == 'linux') {
             await runner.run('scripts/set-version.js', '--deb', buildVersion);
@@ -354,7 +354,7 @@ class DesktopDevelopBuilder {
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
             builder.appendScript('call', 'yarn', 'run', 'build:native');
-            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'riot.im');
+            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'riot.im\\nightly');
             builder.appendScript(
                 'call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
