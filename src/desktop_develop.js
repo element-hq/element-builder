@@ -77,6 +77,18 @@ function getBuildVersion() {
     return now.getFullYear() + month + date + buildNum;
 }
 
+async function setDebVersion(ver, templateFile, outFile) {
+    // Create a debian package control file with the version.
+    // We use a custom control file so we need to do this ourselves
+    const outFp = await fs.open(outFile, 'w');
+    const template = await fs.readFile(templateFile);
+    await outFp.write(template);
+    await outFp.write('Version: ' + ver + "\n");
+    await outFp.close();
+
+    console.log("Version set to " + ver);
+}
+
 async function getMatchingFilesInDir(dir, exp) {
     const ret = [];
     for (const f of await fsProm.readdir(dir)) {
@@ -240,6 +252,11 @@ class DesktopDevelopBuilder {
                 version,
             },
             appId: "im.riot.nightly",
+            deb: {
+                fpm: [
+                    "--deb-custom-control=debcontrol",
+                ],
+            },
         });
         await fsProm.writeFile(
             path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
@@ -321,9 +338,8 @@ class DesktopDevelopBuilder {
         await runner.run('yarn', 'run', 'hak', 'check');
         await runner.run('yarn', 'run', 'build:native');
         await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im/nightly');
-        // This part only actually necessary for the Debian package
         if (type == 'linux') {
-            await runner.run('scripts/set-version.js', '--deb', buildVersion);
+            await setDebVersion(buildVersion, 'riot.im/nightly/control.template', 'debcontrol');
         }
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
