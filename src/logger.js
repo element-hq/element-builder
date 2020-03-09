@@ -57,7 +57,7 @@ async function log(level, ...args) {
     const evData = JSON.stringify(ev);
 
     const url = baseUrl + "/_matrix/client/r0/rooms/" + encodeURIComponent(mxRoomId) + "/send/m.room.message";
-    await new Promise((resolve) => {
+    return new Promise((resolve) => {
         const req = https.request(url, {
             method: 'POST',
             headers: {
@@ -69,6 +69,8 @@ async function log(level, ...args) {
         });
         req.write(evData);
         req.end();
+    }).catch((e) => {
+        // just ignore for now
     });
 }
 
