@@ -240,7 +240,8 @@ class DesktopDevelopBuilder {
         // windows parses them for the version too. We don't really care: nobody
         // sees them. We just give the installer a static name, so you'll just
         // see this in the 'about' dialog.
-        const version = type.startsWith('win') ? '0.0.0-nightly.' + buildVersion : buildVersion;
+        // Turns out if you use 0.0.0 here it makes Squirrel crash, so we use 0.0.1.
+        const version = type.startsWith('win') ? '0.0.1-nightly.' + buildVersion : buildVersion;
 
         Object.assign(cfg, {
             // We override a lot of the metadata for the nightly build
