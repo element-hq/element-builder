@@ -109,11 +109,25 @@ async function getRepoTargets(repoDir) {
     return ret;
 }
 
-function pullDebRepo(pubDir, rsyncRoot) {
-    logger.info("Pulling debian repo...");
+function pullDebDatabase(debDir, rsyncRoot) {
+    logger.info("Pulling debian database...", rsyncRoot + 'debian/', debDir);
     return new Promise((resolve, reject) => {
         const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', rsyncRoot + 'debian/', path.join(pubDir, 'debian'),
+            '-av', '--delete', rsyncRoot + 'debian/', debDir,
+        ], {
+            stdio: 'inherit',
+        });
+        proc.on('exit', code => {
+            code ? reject(code) : resolve();
+        });
+    });
+}
+
+function pushDebDatabase(debDir, rsyncRoot) {
+    logger.info("Pushing debian database...");
+    return new Promise((resolve, reject) => {
+        const proc = childProcess.spawn('rsync', [
+            '-av', '--delete', debDir + '/', rsyncRoot + 'debian',
         ], {
             stdio: 'inherit',
         });
@@ -141,11 +155,25 @@ async function addDeb(debDir, deb) {
     }
 }
 
+function pullArtifacts(pubDir, rsyncRoot) {
+    logger.info("Pulling artifacts...");
+    return new Promise((resolve, reject) => {
+        const proc = childProcess.spawn('rsync', [
+            '-av', '--delete', rsyncRoot + 'packages.riot.im/', pubDir,
+        ], {
+            stdio: 'inherit',
+        });
+        proc.on('exit', code => {
+            code ? reject(code) : resolve();
+        });
+    });
+}
+
 function pushArtifacts(pubDir, rsyncRoot) {
     logger.info("Uploading artifacts...");
     return new Promise((resolve, reject) => {
         const proc = childProcess.spawn('rsync', [
-            '-av', '--delay-updates', pubDir + '/', rsyncRoot,
+            '-av', '--delay-updates', pubDir + '/', rsyncRoot + 'packages.riot.im',
         ], {
             stdio: 'inherit',
         });
@@ -162,7 +190,7 @@ class DesktopDevelopBuilder {
         this.winPassword = winPassword;
         this.rsyncRoot = rsyncRoot;
 
-        this.pubDir = path.join(process.cwd(), 'pub');
+        this.pubDir = path.join(process.cwd(), 'packages.riot.im');
         // This should be a reprepro dir with a config redirecting
         // the output to pub/debian
         this.debDir = path.join(process.cwd(), 'debian');
@@ -324,10 +352,16 @@ class DesktopDevelopBuilder {
             }
             await fsProm.writeFile(path.join(this.appPubDir, 'update', 'macos', 'latest'), buildVersion);
         } else if (type === 'linux') {
-            await pullDebRepo(this.pubDir, this.rsyncRoot);
+            await pullDebDatabase(this.debDir, this.rsyncRoot);
+            // This is a bit of an odd place to do this, but we only actually need it for the
+            // debian repo (but we may as well keep everything in sync). Doing it here means we
+            // do it as soon as possible before modifying the content so minimises any chance of
+            // conflict.
+            await pullArtifacts(this.pubDir, this.rsyncRoot);
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
                 await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
             }
+            await pushDebDatabase(this.debDir, this.rsyncRoot);
         }
     }
 
