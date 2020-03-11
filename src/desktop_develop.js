@@ -415,7 +415,8 @@ class DesktopDevelopBuilder {
 
     async buildWin(type, buildVersion) {
         await fsProm.mkdir('builds', { recursive: true });
-        const repoDir = path.join('builds', 'riot-desktop-' + type + '-' + buildVersion);
+        const buildDirName = 'riot-desktop-' + type + '-' + buildVersion;
+        const repoDir = path.join('builds', buildDirName);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
                 err ? reject(err) : resolve();
@@ -441,9 +442,9 @@ class DesktopDevelopBuilder {
         const electronBuilderArchFlag = type === 'win64' ? '--x64' : '--ia32';
 
         try {
-            builder.appendScript('rd', repoDir, '/s', '/q');
-            builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, repoDir);
-            builder.appendScript('cd', repoDir);
+            builder.appendScript('rd', buildDirName, '/s', '/q');
+            builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName);
+            builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
@@ -454,7 +455,7 @@ class DesktopDevelopBuilder {
             );
             builder.appendScript('xcopy dist z:\\dist /S /I /Y');
             builder.appendScript('cd', '..');
-            builder.appendScript('rd', repoDir, '/s', '/q');
+            builder.appendScript('rd', buildDirName, '/s', '/q');
 
             logger.info("Starting build...");
             await builder.runScript();
