@@ -175,7 +175,7 @@ class WindowsBuilder {
 
         const startTime = Date.now();
         const timer = setInterval(() => {
-            const runningForMins = (Date.now() - startTime) / (60 * 1000);
+            const runningForMins = Math.round((Date.now() - startTime) / (60 * 1000));
             logger.info("Windows build running for " + runningForMins + " mins");
         }, 60 * 1000);
 
