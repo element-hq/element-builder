@@ -184,6 +184,11 @@ function pushArtifacts(pubDir, rsyncRoot) {
     });
 }
 
+function copyAndLog(src, dest) {
+    logger.info('Copy ' + src + ' -> ' + dest);
+    return fsProm.copyFile(src, dest);
+}
+
 async function pruneBuilds(dir, exp) {
     const builds = await getMatchingFilesInDir(dir, exp);
     builds.sort();
@@ -354,7 +359,7 @@ class DesktopDevelopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
-                await fsProm.copyFile(
+                await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     // be consistent with windows and don't bother putting the version number
                     // in the installer
@@ -362,9 +367,12 @@ class DesktopDevelopBuilder {
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
-                await fsProm.copyFile(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
+                await copyAndLog(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
             }
-            await fsProm.writeFile(path.join(this.appPubDir, 'update', 'macos', 'latest'), buildVersion);
+
+            const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
+            logger.info('Write ' + buildVersion + ' -> ' + latestPath);
+            await fsProm.writeFile(latestPath, buildVersion);
 
             // prune update packages (the installer will just overwrite each time)
             await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
@@ -458,19 +466,19 @@ class DesktopDevelopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
-                await fsProm.copyFile(
+                await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'install', 'win32', archDir, 'Riot Nightly Setup.exe'),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
-                await fsProm.copyFile(
+                await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
-                await fsProm.copyFile(
+                await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
                 );
