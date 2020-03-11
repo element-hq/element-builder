@@ -85,7 +85,7 @@ async function setDebVersion(ver, templateFile, outFile) {
     contents += 'Version: ' + ver + "\n";
     await fsProm.writeFile(outFile, contents);
 
-    console.log("Version set to " + ver);
+    logger.info("Version set to " + ver);
 }
 
 async function getMatchingFilesInDir(dir, exp) {
@@ -182,6 +182,11 @@ function pushArtifacts(pubDir, rsyncRoot) {
             code ? reject(code) : resolve();
         });
     });
+}
+
+function copyAndLog(src, dest) {
+    logger.info('Copy ' + src + ' -> ' + dest);
+    return fsProm.copyFile(src, dest);
 }
 
 async function pruneBuilds(dir, exp) {
@@ -354,7 +359,7 @@ class DesktopDevelopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
-                await fsProm.copyFile(
+                await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     // be consistent with windows and don't bother putting the version number
                     // in the installer
@@ -362,9 +367,12 @@ class DesktopDevelopBuilder {
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
-                await fsProm.copyFile(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
+                await copyAndLog(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
             }
-            await fsProm.writeFile(path.join(this.appPubDir, 'update', 'macos', 'latest'), buildVersion);
+
+            const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
+            logger.info('Write ' + buildVersion + ' -> ' + latestPath);
+            await fsProm.writeFile(latestPath, buildVersion);
 
             // prune update packages (the installer will just overwrite each time)
             await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
@@ -426,8 +434,9 @@ class DesktopDevelopBuilder {
             repoDir, type, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
         );
 
-        console.log("Starting Windows builder for " + type);
+        logger.info("Starting Windows builder for " + type + '...');
         await builder.start();
+        logger.info("...builder started");
 
         const electronBuilderArchFlag = type === 'win64' ? '--x64' : '--ia32';
 
@@ -447,9 +456,9 @@ class DesktopDevelopBuilder {
             builder.appendScript('cd', '..');
             builder.appendScript('rd', repoDir, '/s', '/q');
 
-            console.log("Starting build...");
+            logger.info("Starting build...");
             await builder.runScript();
-            console.log("Build complete!");
+            logger.info("Build complete!");
 
             const squirrelDir = 'squirrel-windows' + (type === 'win32' ? '-ia32' : '');
             const archDir = type === 'win32' ? 'ia32' : 'x64';
@@ -458,19 +467,19 @@ class DesktopDevelopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
-                await fsProm.copyFile(
+                await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'install', 'win32', archDir, 'Riot Nightly Setup.exe'),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
-                await fsProm.copyFile(
+                await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
-                await fsProm.copyFile(
+                await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
                 );
