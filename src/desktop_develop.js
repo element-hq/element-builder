@@ -33,7 +33,7 @@ const TYPES = ['win64', 'mac', 'linux'];
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/riot-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
-const KEEP_BUILDS_NUM = 7; // we keep a week's worth of nightly builds
+const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
 // take a date object and advance it to 9am the next morning
 function getNextBuildTime(d) {
