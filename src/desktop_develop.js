@@ -380,6 +380,13 @@ class DesktopDevelopBuilder {
             }
             await pushDebDatabase(this.debDir, this.rsyncRoot);
         }
+
+        logger.info("Removing build dir");
+        await new Promise((resolve, reject) => {
+            rimraf(repoDir, (err) => {
+                err ? reject(err) : resolve();
+            });
+        });
     }
 
     makeMacRunner(cwd) {
@@ -474,6 +481,13 @@ class DesktopDevelopBuilder {
         } finally {
             await builder.stop();
         }
+
+        logger.info("Removing build dir");
+        await new Promise((resolve, reject) => {
+            rimraf(repoDir, (err) => {
+                err ? reject(err) : resolve();
+            });
+        });
     }
 }
 
