@@ -33,6 +33,7 @@ const TYPES = ['win64', 'mac', 'linux'];
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/riot-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
+const KEEP_BUILDS_NUM = 7; // we keep a week's worth of nightly builds
 
 // take a date object and advance it to 9am the next morning
 function getNextBuildTime(d) {
@@ -173,7 +174,7 @@ function pushArtifacts(pubDir, rsyncRoot) {
     logger.info("Uploading artifacts...");
     return new Promise((resolve, reject) => {
         const proc = childProcess.spawn('rsync', [
-            '-av', '--delay-updates', pubDir + '/', rsyncRoot + 'packages.riot.im',
+            '-av', '--delete', '--delay-updates', pubDir + '/', rsyncRoot + 'packages.riot.im',
         ], {
             stdio: 'inherit',
         });
@@ -181,6 +182,18 @@ function pushArtifacts(pubDir, rsyncRoot) {
             code ? reject(code) : resolve();
         });
     });
+}
+
+async function pruneBuilds(dir, exp) {
+    const builds = await getMatchingFilesInDir(dir, exp);
+    builds.sort();
+    const toDelete = builds.slice(0, 0 - KEEP_BUILDS_NUM);
+    if (toDelete.length) {
+        logger.info("Pruning old builds: " + toDelete.join(', '));
+    }
+    for (const f of toDelete) {
+        await fsProm.unlink(path.join(dir, f));
+    }
 }
 
 class DesktopDevelopBuilder {
@@ -300,7 +313,8 @@ class DesktopDevelopBuilder {
     }
 
     async buildLocal(type, buildVersion) {
-        const repoDir = 'riot-desktop-' + type + '-' + buildVersion;
+        await fsProm.mkdir('builds', { recursive: true });
+        const repoDir = path.join('builds', 'riot-desktop-' + type + '-' + buildVersion);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
                 err ? reject(err) : resolve();
@@ -351,6 +365,9 @@ class DesktopDevelopBuilder {
                 await fsProm.copyFile(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
             }
             await fsProm.writeFile(path.join(this.appPubDir, 'update', 'macos', 'latest'), buildVersion);
+
+            // prune update packages (the installer we just overwrite each time)
+            await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
         } else if (type === 'linux') {
             await pullDebDatabase(this.debDir, this.rsyncRoot);
             // This is a bit of an odd place to do this, but we only actually need it for the
@@ -382,7 +399,8 @@ class DesktopDevelopBuilder {
     }
 
     async buildWin(type, buildVersion) {
-        const repoDir = 'riot-desktop-' + type + '-' + buildVersion;
+        await fsProm.mkdir('builds', { recursive: true });
+        const repoDir = path.join('builds', 'riot-desktop-' + type + '-' + buildVersion);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
                 err ? reject(err) : resolve();
@@ -450,6 +468,9 @@ class DesktopDevelopBuilder {
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
                 );
             }
+
+            // prune update packages (installers are overwritten each time)
+            await pruneBuilds(path.join(this.appPubDir, 'update', 'win32', archDir), /\.nupkg$/);
         } finally {
             await builder.stop();
         }
