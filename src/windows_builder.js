@@ -173,10 +173,17 @@ class WindowsBuilder {
 
         await fsProm.writeFile(tmpCmdFile, fileContents);
 
+        const startTime = Date.now();
+        const timer = setInterval(() => {
+            const runningForMins = (Date.now() - startTime) / (60 * 1000);
+            logger.info("Windows build running for " + runningForMins + " mins");
+        }, 60 * 1000);
+
         try {
             const ret = await this._run('z:\\tmp.cmd');
             return ret;
         } finally {
+            clearInterval(timer);
             await fsProm.unlink(tmpCmdFile);
         }
     }
