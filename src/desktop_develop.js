@@ -366,7 +366,7 @@ class DesktopDevelopBuilder {
             }
             await fsProm.writeFile(path.join(this.appPubDir, 'update', 'macos', 'latest'), buildVersion);
 
-            // prune update packages (the installer we just overwrite each time)
+            // prune update packages (the installer will just overwrite each time)
             await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
         } else if (type === 'linux') {
             await pullDebDatabase(this.debDir, this.rsyncRoot);
