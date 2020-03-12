@@ -241,19 +241,30 @@ class DesktopDevelopBuilder {
     poll = async () => {
         if (this.building) return;
 
-        const built = [];
+        const toBuild = [];
         for (const type of TYPES) {
             const nextBuildDue = getNextBuildTime(new Date(Math.max(
                 this.lastBuildTimes[type], this.lastFailTimes[type],
             )));
             //logger.debug("Next build due at " + nextBuildDue);
             if (nextBuildDue.getTime() < Date.now()) {
+                toBuild.push(type);
+            }
+        }
+
+        if (toBuild.length === 0) return;
+
+        try {
+            this.building = true;
+
+            // Sync all the artifacts from the server before we start
+            await pullArtifacts(this.pubDir, this.rsyncRoot);
+
+            for (const type of toBuild) {
                 try {
-                    this.building = true;
                     logger.info("Starting build of " + type);
                     const thisBuildVersion = getBuildVersion();
                     await this.build(type, thisBuildVersion);
-                    built.push(type);
                     this.lastBuildTimes[type] = Date.now();
                     await putLastBuildTime(type, this.lastBuildTimes[type]);
                 } catch (e) {
@@ -262,16 +273,14 @@ class DesktopDevelopBuilder {
                     // if one fails, bail out of the whole process: probably better
                     // to have all platforms not updating than just one
                     return;
-                } finally {
-                    this.building = false;
                 }
             }
-        }
 
-        if (built.length > 0) {
-            logger.info("Built packages for: " + built.join(', ') + ": pushing packages...");
+            logger.info("Built packages for: " + toBuild.join(', ') + ": pushing packages...");
             await pushArtifacts(this.pubDir, this.rsyncRoot);
             logger.info("...push complete!");
+        } finally {
+            this.building = false;
         }
     }
 
@@ -378,11 +387,6 @@ class DesktopDevelopBuilder {
             await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
         } else if (type === 'linux') {
             await pullDebDatabase(this.debDir, this.rsyncRoot);
-            // This is a bit of an odd place to do this, but we only actually need it for the
-            // debian repo (but we may as well keep everything in sync). Doing it here means we
-            // do it as soon as possible before modifying the content so minimises any chance of
-            // conflict.
-            await pullArtifacts(this.pubDir, this.rsyncRoot);
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
                 await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
             }
