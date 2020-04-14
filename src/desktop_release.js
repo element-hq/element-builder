@@ -212,7 +212,7 @@ class DesktopDevelopBuilder {
         // This should be a reprepro dir with a config redirecting
         // the output to pub/debian
         this.debDir = path.join(process.cwd(), 'debian');
-        this.appPubDir = path.join(this.pubDir, 'nightly');
+        this.appPubDir = path.join(this.pubDir, 'desktop');
     }
 
     async start() {
@@ -289,23 +289,7 @@ class DesktopDevelopBuilder {
         // so load it here
         const cfg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).build;
 
-        // the windows packager relies on parsing this as semver, so we have
-        // to make it look like one. This will give our update packages really
-        // stupid names but we probably can't change that either because squirrel
-        // windows parses them for the version too. We don't really care: nobody
-        // sees them. We just give the installer a static name, so you'll just
-        // see this in the 'about' dialog.
-        // Turns out if you use 0.0.0 here it makes Squirrel windows crash, so we use 0.0.1.
-        const version = type.startsWith('win') ? '0.0.1-nightly.' + buildVersion : buildVersion;
-
         Object.assign(cfg, {
-            // We override a lot of the metadata for the nightly build
-            extraMetadata: {
-                name: "riot-desktop-nightly",
-                productName: "Riot Nightly",
-                version,
-            },
-            appId: "im.riot.nightly",
             deb: {
                 fpm: [
                     "--deb-custom-control=debcontrol",
@@ -345,7 +329,7 @@ class DesktopDevelopBuilder {
         if (type == 'linux') {
             await setDebVersion(
                 buildVersion,
-                path.join(repoDir, 'riot.im', 'nightly', 'control.template'),
+                path.join(repoDir, 'riot.im', 'release', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
             );
         }
@@ -372,7 +356,7 @@ class DesktopDevelopBuilder {
                     path.join(repoDir, 'dist', f),
                     // be consistent with windows and don't bother putting the version number
                     // in the installer
-                    path.join(this.appPubDir, 'install', 'macos', 'Riot Nightly.dmg'),
+                    path.join(this.appPubDir, 'install', 'macos', f),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
@@ -413,7 +397,7 @@ class DesktopDevelopBuilder {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check');
         await runner.run('yarn', 'run', 'build:native');
-        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im/nightly');
+        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im/release');
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
@@ -453,7 +437,7 @@ class DesktopDevelopBuilder {
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
             builder.appendScript('call', 'yarn', 'run', 'build:native');
-            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'riot.im\\nightly');
+            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'riot.im\\release');
             builder.appendScript(
                 'call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
@@ -474,7 +458,7 @@ class DesktopDevelopBuilder {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'Riot Nightly Setup.exe'),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, f),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
