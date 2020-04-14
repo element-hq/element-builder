@@ -216,7 +216,7 @@ class DesktopDevelopBuilder {
     }
 
     async start() {
-        logger.info("Starting Desktop/develop builder...");
+        logger.info("Starting Riot Desktop nightly builder...");
         this.building = false;
 
         // get the token passphrase now so a) we fail early if it's not in the keychain
