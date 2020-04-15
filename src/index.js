@@ -18,6 +18,7 @@ limitations under the License.
 
 const logger = require('./logger');
 const DesktopDevelopBuilder = require('./desktop_develop');
+const DesktopReleaseBuilder = require('./desktop_release');
 
 if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env.RIOTBUILD_ACCESS_TOKEN) {
     console.log("Logging to console + Matrix");
@@ -49,5 +50,29 @@ if (rsyncServer === undefined) {
     process.exit(1);
 }
 
-const desktopDevelopBuilder = new DesktopDevelopBuilder(winVmName, winUsername, winPassword, rsyncServer);
-desktopDevelopBuilder.start();
+// For a release build, this is the tag / branch of riot-desktop to build from.
+let desktopBranch = null;
+
+while (process.argv.length > 2) {
+    switch (process.argv[2]) {
+        case '--version':
+        case '-v':
+            process.argv.shift();
+            desktopBranch = process.argv[2];
+            break;
+        default:
+            console.error(`Unknown option ${process.argv[2]}`);
+            process.exit(1);
+    }
+    process.argv.shift();
+}
+
+let builder;
+if (desktopBranch) {
+    builder = new DesktopReleaseBuilder(
+        winVmName, winUsername, winPassword, rsyncServer, desktopBranch);
+} else {
+    builder = new DesktopDevelopBuilder(
+        winVmName, winUsername, winPassword, rsyncServer);
+}
+builder.start();
