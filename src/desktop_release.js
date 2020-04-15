@@ -33,50 +33,6 @@ const TYPES = ['win64', 'mac', 'linux'];
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/riot-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
-const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
-
-// take a date object and advance it to 9am the next morning
-function getNextBuildTime(d) {
-    const next = new Date(d.getTime());
-    next.setHours(9);
-    next.setMinutes(0);
-    next.setSeconds(0);
-    next.setMilliseconds(0);
-
-    if (next.getTime() < d.getTime()) {
-        next.setDate(next.getDate() + 1);
-    }
-
-    return next;
-}
-
-async function getLastBuildTime(type) {
-    try {
-        return await fsProm.readFile('desktop_develop_lastBuilt_' + type, 'utf8');
-    } catch (e) {
-        return 0;
-    }
-}
-
-async function putLastBuildTime(type, t) {
-    try {
-        return await fsProm.writeFile('desktop_develop_lastBuilt_' + type, t);
-    } catch (e) {
-        return 0;
-    }
-}
-
-function getBuildVersion() {
-    // YYYYMMDDNN where NN is in case we need to do multiple versions in a day
-    // NB. on windows, squirrel will try to parse the versiopn number parts,
-    // including this string, into 32 bit integers, which is fine as long
-    // as we only add two digits to the end...
-    const now = new Date();
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const date = now.getDate().toString().padStart(2, '0');
-    const buildNum = '01';
-    return now.getFullYear() + month + date + buildNum;
-}
 
 async function setDebVersion(ver, templateFile, outFile) {
     // Create a debian package control file with the version.
@@ -189,34 +145,24 @@ function copyAndLog(src, dest) {
     return fsProm.copyFile(src, dest);
 }
 
-async function pruneBuilds(dir, exp) {
-    const builds = await getMatchingFilesInDir(dir, exp);
-    builds.sort();
-    const toDelete = builds.slice(0, 0 - KEEP_BUILDS_NUM);
-    if (toDelete.length) {
-        logger.info("Pruning old builds: " + toDelete.join(', '));
-    }
-    for (const f of toDelete) {
-        await fsProm.unlink(path.join(dir, f));
-    }
-}
-
-class DesktopDevelopBuilder {
-    constructor(winVmName, winUsername, winPassword, rsyncRoot) {
+class DesktopReleaseBuilder {
+    constructor(winVmName, winUsername, winPassword, rsyncRoot, desktopBranch) {
         this.winVmName = winVmName;
         this.winUsername = winUsername;
         this.winPassword = winPassword;
         this.rsyncRoot = rsyncRoot;
+        // This is the tag / branch of riot-desktop to build from, e.g. v1.6.0
+        this.desktopBranch = desktopBranch;
 
         this.pubDir = path.join(process.cwd(), 'packages.riot.im');
         // This should be a reprepro dir with a config redirecting
         // the output to pub/debian
         this.debDir = path.join(process.cwd(), 'debian');
-        this.appPubDir = path.join(this.pubDir, 'nightly');
+        this.appPubDir = path.join(this.pubDir, 'desktop');
     }
 
     async start() {
-        logger.info("Starting Riot Desktop nightly builder...");
+        logger.info(`Starting Riot Desktop ${this.desktopBranch} release builder...`);
         this.building = false;
 
         // get the token passphrase now so a) we fail early if it's not in the keychain
@@ -227,30 +173,11 @@ class DesktopDevelopBuilder {
         // is actually the key container in the format [{{passphrase}}]=container
         this.riotSigningKeyContainer = await getSecret('riot_key_container');
 
-        this.lastBuildTimes = {};
-        this.lastFailTimes = {};
-        for (const type of TYPES) {
-            this.lastBuildTimes[type] = parseInt(await getLastBuildTime(type));
-            this.lastFailTimes[type] = 0;
-        }
-
-        setInterval(this.poll, 30 * 1000);
-        this.poll();
-    }
-
-    poll = async () => {
         if (this.building) return;
 
-        const toBuild = [];
-        for (const type of TYPES) {
-            const nextBuildDue = getNextBuildTime(new Date(Math.max(
-                this.lastBuildTimes[type], this.lastFailTimes[type],
-            )));
-            //logger.debug("Next build due at " + nextBuildDue);
-            if (nextBuildDue.getTime() < Date.now()) {
-                toBuild.push(type);
-            }
-        }
+        // XXX: Could be simplified, keeping this mostly unchanged from the
+        // develop file for now...
+        const toBuild = TYPES;
 
         if (toBuild.length === 0) return;
 
@@ -262,14 +189,10 @@ class DesktopDevelopBuilder {
 
             for (const type of toBuild) {
                 try {
-                    logger.info("Starting build of " + type);
-                    const thisBuildVersion = getBuildVersion();
-                    await this.build(type, thisBuildVersion);
-                    this.lastBuildTimes[type] = Date.now();
-                    await putLastBuildTime(type, this.lastBuildTimes[type]);
+                    logger.info(`Starting build of ${type} for ${this.desktopBranch}`);
+                    await this.build(type);
                 } catch (e) {
                     logger.error("Build failed!", e);
-                    this.lastFailTimes[type] = Date.now();
                     // if one fails, bail out of the whole process: probably better
                     // to have all platforms not updating than just one
                     return;
@@ -289,23 +212,7 @@ class DesktopDevelopBuilder {
         // so load it here
         const cfg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).build;
 
-        // the windows packager relies on parsing this as semver, so we have
-        // to make it look like one. This will give our update packages really
-        // stupid names but we probably can't change that either because squirrel
-        // windows parses them for the version too. We don't really care: nobody
-        // sees them. We just give the installer a static name, so you'll just
-        // see this in the 'about' dialog.
-        // Turns out if you use 0.0.0 here it makes Squirrel windows crash, so we use 0.0.1.
-        const version = type.startsWith('win') ? '0.0.1-nightly.' + buildVersion : buildVersion;
-
         Object.assign(cfg, {
-            // We override a lot of the metadata for the nightly build
-            extraMetadata: {
-                name: "riot-desktop-nightly",
-                productName: "Riot Nightly",
-                version,
-            },
-            appId: "im.riot.nightly",
             deb: {
                 fpm: [
                     "--deb-custom-control=debcontrol",
@@ -318,17 +225,17 @@ class DesktopDevelopBuilder {
         );
     }
 
-    async build(type, buildVersion) {
+    async build(type) {
         if (type.startsWith('win')) {
-            return this.buildWin(type, buildVersion);
+            return this.buildWin(type);
         } else {
-            return this.buildLocal(type, buildVersion);
+            return this.buildLocal(type);
         }
     }
 
-    async buildLocal(type, buildVersion) {
+    async buildLocal(type) {
         await fsProm.mkdir('builds', { recursive: true });
-        const repoDir = path.join('builds', 'riot-desktop-' + type + '-' + buildVersion);
+        const repoDir = path.join('builds', 'riot-desktop-' + type + '-' + this.desktopBranch);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
                 err ? reject(err) : resolve();
@@ -336,16 +243,17 @@ class DesktopDevelopBuilder {
         });
         logger.info("Cloning riot-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
-        await repo.clone(DESKTOP_GIT_REPO, repoDir);
-        // NB. we stay on the 'master' branch of the riot-desktop
-        // repo (and fetch the develop version of riot-web later)
-        logger.info("...checked out 'master' branch, starting build for " + type);
+        // Clone riot-desktop at tag / branch to build from, e.g. v1.6.0
+        await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
+        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${type}`);
+
+        const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).version;
 
         await this.writeElectronBuilderConfigFile(type, repoDir, buildVersion);
         if (type == 'linux') {
             await setDebVersion(
                 buildVersion,
-                path.join(repoDir, 'riot.im', 'nightly', 'control.template'),
+                path.join(repoDir, 'riot.im', 'release', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
             );
         }
@@ -372,7 +280,7 @@ class DesktopDevelopBuilder {
                     path.join(repoDir, 'dist', f),
                     // be consistent with windows and don't bother putting the version number
                     // in the installer
-                    path.join(this.appPubDir, 'install', 'macos', 'Riot Nightly.dmg'),
+                    path.join(this.appPubDir, 'install', 'macos', f),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
@@ -382,9 +290,6 @@ class DesktopDevelopBuilder {
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
             await fsProm.writeFile(latestPath, buildVersion);
-
-            // prune update packages (the installer will just overwrite each time)
-            await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
         } else if (type === 'linux') {
             await pullDebDatabase(this.debDir, this.rsyncRoot);
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
@@ -413,13 +318,15 @@ class DesktopDevelopBuilder {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check');
         await runner.run('yarn', 'run', 'build:native');
-        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im/nightly');
+        // This will fetch the Riot release from GitHub that matches the version
+        // in riot-desktop's package.json.
+        await runner.run('yarn', 'run', 'fetch', '-d', 'riot.im/release');
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
-    async buildWin(type, buildVersion) {
+    async buildWin(type) {
         await fsProm.mkdir('builds', { recursive: true });
-        const buildDirName = 'riot-desktop-' + type + '-' + buildVersion;
+        const buildDirName = 'riot-desktop-' + type + '-' + this.desktopBranch;
         const repoDir = path.join('builds', buildDirName);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
@@ -430,9 +337,14 @@ class DesktopDevelopBuilder {
         // we still check out the repo locally because we need package.json
         // to write the electron builder config file, so we check out the
         // repo twice for windows: once locally and once on the VM...
+        logger.info("Cloning riot-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
-        await repo.clone(DESKTOP_GIT_REPO, repoDir);
-        //await fsProm.mkdir(repoDir);
+        // Clone riot-desktop at tag / branch to build from, e.g. v1.6.0
+        await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
+        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${type}`);
+
+        const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).version;
+
         await this.writeElectronBuilderConfigFile(type, repoDir, buildVersion);
 
         const builder = new WindowsBuilder(
@@ -447,13 +359,16 @@ class DesktopDevelopBuilder {
 
         try {
             builder.appendScript('rd', buildDirName, '/s', '/q');
-            builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName);
+            // Clone riot-desktop at tag / branch to build from, e.g. v1.6.0
+            builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName, '-b', this.desktopBranch);
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
             builder.appendScript('call', 'yarn', 'run', 'build:native');
-            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'riot.im\\nightly');
+            // This will fetch the Riot release from GitHub that matches the
+            // version in riot-desktop's package.json.
+            builder.appendScript('call', 'yarn', 'run', 'fetch', '-d', 'riot.im\\release');
             builder.appendScript(
                 'call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
@@ -474,7 +389,7 @@ class DesktopDevelopBuilder {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'Riot Nightly Setup.exe'),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, f),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
@@ -489,9 +404,6 @@ class DesktopDevelopBuilder {
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
                 );
             }
-
-            // prune update packages (installers are overwritten each time)
-            await pruneBuilds(path.join(this.appPubDir, 'update', 'win32', archDir), /\.nupkg$/);
         } finally {
             await builder.stop();
         }
@@ -505,4 +417,4 @@ class DesktopDevelopBuilder {
     }
 }
 
-module.exports = DesktopDevelopBuilder;
+module.exports = DesktopReleaseBuilder;
