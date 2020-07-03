@@ -151,7 +151,7 @@ class DesktopReleaseBuilder {
         this.winUsername = winUsername;
         this.winPassword = winPassword;
         this.rsyncRoot = rsyncRoot;
-        // This is the tag / branch of riot-desktop to build from, e.g. v1.6.0
+        // This is the tag / branch of element-desktop to build from, e.g. v1.6.0
         this.desktopBranch = desktopBranch;
 
         this.pubDir = path.join(process.cwd(), 'packages.riot.im');
@@ -162,7 +162,7 @@ class DesktopReleaseBuilder {
     }
 
     async start() {
-        logger.info(`Starting Riot Desktop ${this.desktopBranch} release builder...`);
+        logger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
         this.building = false;
 
         // get the token passphrase now so a) we fail early if it's not in the keychain
@@ -235,15 +235,15 @@ class DesktopReleaseBuilder {
 
     async buildLocal(type) {
         await fsProm.mkdir('builds', { recursive: true });
-        const repoDir = path.join('builds', 'riot-desktop-' + type + '-' + this.desktopBranch);
+        const repoDir = path.join('builds', 'element-desktop-' + type + '-' + this.desktopBranch);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
                 err ? reject(err) : resolve();
             });
         });
-        logger.info("Cloning riot-desktop into " + repoDir);
+        logger.info("Cloning element-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
-        // Clone riot-desktop at tag / branch to build from, e.g. v1.6.0
+        // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
         await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
         logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${type}`);
 
@@ -253,7 +253,7 @@ class DesktopReleaseBuilder {
         if (type == 'linux') {
             await setDebVersion(
                 buildVersion,
-                path.join(repoDir, 'riot.im', 'release', 'control.template'),
+                path.join(repoDir, 'element.io', 'release', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
             );
         }
@@ -318,15 +318,15 @@ class DesktopReleaseBuilder {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check');
         await runner.run('yarn', 'run', 'build:native');
-        // This will fetch the Riot release from GitHub that matches the version
+        // This will fetch the Element release from GitHub that matches the version
         // in riot-desktop's package.json.
-        await runner.run('yarn', 'run', 'fetch', '-d', 'riot.im/release');
+        await runner.run('yarn', 'run', 'fetch', '-d', 'element.io/release');
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
     async buildWin(type) {
         await fsProm.mkdir('builds', { recursive: true });
-        const buildDirName = 'riot-desktop-' + type + '-' + this.desktopBranch;
+        const buildDirName = 'element-desktop-' + type + '-' + this.desktopBranch;
         const repoDir = path.join('builds', buildDirName);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
@@ -337,7 +337,7 @@ class DesktopReleaseBuilder {
         // we still check out the repo locally because we need package.json
         // to write the electron builder config file, so we check out the
         // repo twice for windows: once locally and once on the VM...
-        logger.info("Cloning riot-desktop into " + repoDir);
+        logger.info("Cloning element-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
         // Clone riot-desktop at tag / branch to build from, e.g. v1.6.0
         await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
@@ -366,9 +366,9 @@ class DesktopReleaseBuilder {
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
             builder.appendScript('call', 'yarn', 'run', 'build:native');
-            // This will fetch the Riot release from GitHub that matches the
-            // version in riot-desktop's package.json.
-            builder.appendScript('call', 'yarn', 'run', 'fetch', '-d', 'riot.im\\release');
+            // This will fetch the Element release from GitHub that matches the
+            // version in element-desktop's package.json.
+            builder.appendScript('call', 'yarn', 'run', 'fetch', '-d', 'element.io\\release');
             builder.appendScript(
                 'call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
