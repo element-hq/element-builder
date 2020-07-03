@@ -319,7 +319,7 @@ class DesktopReleaseBuilder {
         await runner.run('yarn', 'run', 'hak', 'check');
         await runner.run('yarn', 'run', 'build:native');
         // This will fetch the Element release from GitHub that matches the version
-        // in riot-desktop's package.json.
+        // in element-desktop's package.json.
         await runner.run('yarn', 'run', 'fetch', '-d', 'element.io/release');
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
