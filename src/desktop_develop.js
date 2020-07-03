@@ -258,7 +258,7 @@ class DesktopDevelopBuilder {
             this.building = true;
 
             // Sync all the artifacts from the server before we start
-            //await pullArtifacts(this.pubDir, this.rsyncRoot);
+            await pullArtifacts(this.pubDir, this.rsyncRoot);
 
             for (const type of toBuild) {
                 try {
