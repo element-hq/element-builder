@@ -216,7 +216,7 @@ class DesktopDevelopBuilder {
     }
 
     async start() {
-        logger.info("Starting Riot Desktop nightly builder...");
+        logger.info("Starting Element Desktop nightly builder...");
         this.building = false;
 
         // get the token passphrase now so a) we fail early if it's not in the keychain
@@ -301,8 +301,8 @@ class DesktopDevelopBuilder {
         Object.assign(cfg, {
             // We override a lot of the metadata for the nightly build
             extraMetadata: {
-                name: "riot-desktop-nightly",
-                productName: "Riot Nightly",
+                name: "element-desktop-nightly",
+                productName: "Element Nightly",
                 version,
             },
             appId: "im.riot.nightly",
@@ -328,13 +328,13 @@ class DesktopDevelopBuilder {
 
     async buildLocal(type, buildVersion) {
         await fsProm.mkdir('builds', { recursive: true });
-        const repoDir = path.join('builds', 'riot-desktop-' + type + '-' + buildVersion);
+        const repoDir = path.join('builds', 'element-desktop-' + type + '-' + buildVersion);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
                 err ? reject(err) : resolve();
             });
         });
-        logger.info("Cloning riot-desktop into " + repoDir);
+        logger.info("Cloning element-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
         await repo.clone(DESKTOP_GIT_REPO, repoDir);
         // NB. we stay on the 'master' branch of the riot-desktop
@@ -345,7 +345,7 @@ class DesktopDevelopBuilder {
         if (type == 'linux') {
             await setDebVersion(
                 buildVersion,
-                path.join(repoDir, 'riot.im', 'nightly', 'control.template'),
+                path.join(repoDir, 'element.io', 'nightly', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
             );
         }
@@ -372,7 +372,7 @@ class DesktopDevelopBuilder {
                     path.join(repoDir, 'dist', f),
                     // be consistent with windows and don't bother putting the version number
                     // in the installer
-                    path.join(this.appPubDir, 'install', 'macos', 'Riot Nightly.dmg'),
+                    path.join(this.appPubDir, 'install', 'macos', 'Element Nightly.dmg'),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
@@ -413,13 +413,13 @@ class DesktopDevelopBuilder {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check');
         await runner.run('yarn', 'run', 'build:native');
-        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'riot.im/nightly');
+        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'element.io/nightly');
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
     async buildWin(type, buildVersion) {
         await fsProm.mkdir('builds', { recursive: true });
-        const buildDirName = 'riot-desktop-' + type + '-' + buildVersion;
+        const buildDirName = 'element-desktop-' + type + '-' + buildVersion;
         const repoDir = path.join('builds', buildDirName);
         await new Promise((resolve, reject) => {
             rimraf(repoDir, (err) => {
@@ -453,7 +453,7 @@ class DesktopDevelopBuilder {
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
             builder.appendScript('call', 'yarn', 'run', 'build:native');
-            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'riot.im\\nightly');
+            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'element.io\\nightly');
             builder.appendScript(
                 'call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
@@ -474,7 +474,7 @@ class DesktopDevelopBuilder {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'Riot Nightly Setup.exe'),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Nightly Setup.exe'),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
