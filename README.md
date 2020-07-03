@@ -1,3 +1,3 @@
-# Riot Builder
+# Element Builder
 
-A minimalist builder for Riot and Riot Desktop.
+A minimalist builder for Element and Element Desktop.
