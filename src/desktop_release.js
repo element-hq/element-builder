@@ -212,6 +212,10 @@ class DesktopReleaseBuilder {
         // so load it here
         const cfg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).build;
 
+        // Electron crashes on debian if there's a space in the path.
+        // https://github.com/vector-im/riot-web/issues/13171
+        if (type === 'linux') cfg.productName = 'Element';
+
         Object.assign(cfg, {
             deb: {
                 fpm: [
