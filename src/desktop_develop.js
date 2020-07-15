@@ -289,6 +289,10 @@ class DesktopDevelopBuilder {
         // so load it here
         const cfg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).build;
 
+        // Electron crashes on debian if there's a space in the path.
+        // https://github.com/vector-im/riot-web/issues/13171
+        if (type === 'linux') cfg.productName = cfg.productName.replace(' ', '-');
+
         // the windows packager relies on parsing this as semver, so we have
         // to make it look like one. This will give our update packages really
         // stupid names but we probably can't change that either because squirrel
