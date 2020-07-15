@@ -214,7 +214,7 @@ class DesktopReleaseBuilder {
 
         // Electron crashes on debian if there's a space in the path.
         // https://github.com/vector-im/riot-web/issues/13171
-        if (type === 'linux') cfg.productName = 'Element';
+        if (type === 'linux') cfg.productName = cfg.productName.replace(' ', '-');
 
         Object.assign(cfg, {
             deb: {
