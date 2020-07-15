@@ -190,15 +190,16 @@ function copyAndLog(src, dest) {
 }
 
 async function pruneBuilds(dir, exp) {
-    const builds = await getMatchingFilesInDir(dir, exp);
-    builds.sort();
-    const toDelete = builds.slice(0, 0 - KEEP_BUILDS_NUM);
-    if (toDelete.length) {
-        logger.info("Pruning old builds: " + toDelete.join(', '));
-    }
-    for (const f of toDelete) {
-        await fsProm.unlink(path.join(dir, f));
-    }
+    // TODO: Make this match based on file time and not rely on name-based ordering
+    // const builds = await getMatchingFilesInDir(dir, exp);
+    // builds.sort();
+    // const toDelete = builds.slice(0, 0 - KEEP_BUILDS_NUM);
+    // if (toDelete.length) {
+    //     logger.info("Pruning old builds: " + toDelete.join(', '));
+    // }
+    // for (const f of toDelete) {
+    //     await fsProm.unlink(path.join(dir, f));
+    // }
 }
 
 class DesktopDevelopBuilder {
