@@ -210,13 +210,17 @@ class DesktopReleaseBuilder {
     async writeElectronBuilderConfigFile(type, repoDir, buildVersion) {
         // Electron builder doesn't overlay with the config in package.json,
         // so load it here
-        const cfg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).build;
+        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json')));
+        const cfg = pkg.build;
 
         // Electron crashes on debian if there's a space in the path.
         // https://github.com/vector-im/riot-web/issues/13171
-        if (type === 'linux') cfg.productName = 'Element';
+        const productName = (type === 'linux') ? 'Element' : pkg.productName;
 
         Object.assign(cfg, {
+            extraMetadata: {
+                productName,
+            },
             deb: {
                 fpm: [
                     "--deb-custom-control=debcontrol",

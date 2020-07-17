@@ -287,11 +287,12 @@ class DesktopDevelopBuilder {
     async writeElectronBuilderConfigFile(type, repoDir, buildVersion) {
         // Electron builder doesn't overlay with the config in package.json,
         // so load it here
-        const cfg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).build;
+        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json')));
+        const cfg = pkg.build;
 
         // Electron crashes on debian if there's a space in the path.
         // https://github.com/vector-im/riot-web/issues/13171
-        if (type === 'linux') cfg.productName = cfg.productName.replace(' ', '-');
+        const productName = (type === 'linux') ? 'Element-Nightly' : 'Element Nightly';
 
         // the windows packager relies on parsing this as semver, so we have
         // to make it look like one. This will give our update packages really
@@ -306,7 +307,7 @@ class DesktopDevelopBuilder {
             // We override a lot of the metadata for the nightly build
             extraMetadata: {
                 name: "element-desktop-nightly",
-                productName: "Element Nightly",
+                productName,
                 version,
             },
             appId: "im.riot.nightly",
