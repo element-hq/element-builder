@@ -298,6 +298,15 @@ class DesktopReleaseBuilder {
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
             await fsProm.writeFile(latestPath, buildVersion);
+
+            const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json')));
+            const newInstallPath = path.join(`${pkg.productName}-${buildVersion}.dmg`);
+            // This skips ahead to the future and drops "(Riot)" from the main
+            // download link.
+            const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
+            logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + newInstallPath);
+            await fsProm.unlink(latestInstallPath);
+            await fsProm.symlink(newInstallPath, latestInstallPath, 'file');
         } else if (type === 'linux') {
             await pullDebDatabase(this.debDir, this.rsyncRoot);
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
@@ -412,6 +421,15 @@ class DesktopReleaseBuilder {
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
                 );
             }
+
+            const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json')));
+            const newInstallPath = path.join(`${pkg.productName} Setup ${buildVersion}.exe`);
+            // This skips ahead to the future and drops "(Riot)" from the main
+            // download link.
+            const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
+            logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + newInstallPath);
+            await fsProm.unlink(latestInstallPath);
+            await fsProm.symlink(newInstallPath, latestInstallPath, 'file');
         } finally {
             await builder.stop();
         }
