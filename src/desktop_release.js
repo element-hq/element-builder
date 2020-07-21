@@ -286,10 +286,15 @@ class DesktopReleaseBuilder {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
-                    // be consistent with windows and don't bother putting the version number
-                    // in the installer
                     path.join(this.appPubDir, 'install', 'macos', f),
                 );
+
+                // This skips ahead to the future and drops "(Riot)" from the main
+                // download link.
+                const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
+                logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
+                await fsProm.unlink(latestInstallPath);
+                await fsProm.symlink(f, latestInstallPath, 'file');
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
                 await copyAndLog(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
@@ -399,6 +404,13 @@ class DesktopReleaseBuilder {
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'install', 'win32', archDir, f),
                 );
+
+                // This skips ahead to the future and drops "(Riot)" from the main
+                // download link.
+                const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
+                logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
+                await fsProm.unlink(latestInstallPath);
+                await fsProm.symlink(f, latestInstallPath, 'file');
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
                 await copyAndLog(
