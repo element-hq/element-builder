@@ -342,9 +342,7 @@ class DesktopDevelopBuilder {
         logger.info("Cloning element-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
         await repo.clone(DESKTOP_GIT_REPO, repoDir);
-        // NB. we stay on the 'master' branch of the riot-desktop
-        // repo (and fetch the develop version of riot-web later)
-        logger.info("...checked out 'master' branch, starting build for " + type);
+        logger.info("...checked out 'develop' branch, starting build for " + type);
 
         await this.writeElectronBuilderConfigFile(type, repoDir, buildVersion);
         if (type == 'linux') {
