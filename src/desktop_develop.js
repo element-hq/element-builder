@@ -38,7 +38,7 @@ const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 // take a date object and advance it to 9am the next morning
 function getNextBuildTime(d) {
     const next = new Date(d.getTime());
-    next.setHours(9);
+    next.setHours(8);
     next.setMinutes(0);
     next.setSeconds(0);
     next.setMilliseconds(0);
