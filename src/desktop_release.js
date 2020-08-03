@@ -214,7 +214,7 @@ class DesktopReleaseBuilder {
         const cfg = pkg.build;
 
         // Electron crashes on debian if there's a space in the path.
-        // https://github.com/vector-im/riot-web/issues/13171
+        // https://github.com/vector-im/element-web/issues/13171
         const productName = (type === 'linux') ? 'Element' : pkg.productName;
 
         Object.assign(cfg, {
