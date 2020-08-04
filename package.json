@@ -1,7 +1,7 @@
 {
-  "name": "riot-builder",
+  "name": "element-builder",
   "version": "0.0.1",
-  "description": "A very minimal auto-builder for Riot",
+  "description": "A very minimal auto-builder for Element",
   "main": "src/index.js",
   "license": "Apache-2.0",
   "scripts": {

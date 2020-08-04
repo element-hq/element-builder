@@ -291,7 +291,7 @@ class DesktopDevelopBuilder {
         const cfg = pkg.build;
 
         // Electron crashes on debian if there's a space in the path.
-        // https://github.com/vector-im/riot-web/issues/13171
+        // https://github.com/vector-im/element-web/issues/13171
         const productName = (type === 'linux') ? 'Element-Nightly' : 'Element Nightly';
 
         // the windows packager relies on parsing this as semver, so we have
