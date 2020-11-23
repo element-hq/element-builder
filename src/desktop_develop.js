@@ -31,7 +31,7 @@ const WindowsBuilder = require('./windows_builder');
 
 const TYPES = ['win64', 'mac', 'linux'];
 
-const DESKTOP_GIT_REPO = 'https://github.com/vector-im/riot-desktop.git';
+const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
