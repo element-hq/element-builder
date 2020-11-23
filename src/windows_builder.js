@@ -20,7 +20,7 @@ const childProcess = require('child_process');
 
 const logger = require('./logger');
 
-const STARTVM_TIMEOUT = 60 * 1000;
+const STARTVM_TIMEOUT = 90 * 1000;
 const POWEROFF_TIMEOUT = 20 * 1000;
 
 // You could install Visual Studio to a different location but not worrying about
