@@ -50,7 +50,7 @@ if (rsyncServer === undefined) {
     process.exit(1);
 }
 
-// For a release build, this is the tag / branch of riot-desktop to build from.
+// For a release build, this is the tag / branch of element-desktop to build from.
 let desktopBranch = null;
 
 while (process.argv.length > 2) {

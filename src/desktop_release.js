@@ -31,7 +31,7 @@ const WindowsBuilder = require('./windows_builder');
 
 const TYPES = ['win64', 'mac', 'linux'];
 
-const DESKTOP_GIT_REPO = 'https://github.com/vector-im/riot-desktop.git';
+const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 
 async function setDebVersion(ver, templateFile, outFile) {
@@ -352,7 +352,7 @@ class DesktopReleaseBuilder {
         // repo twice for windows: once locally and once on the VM...
         logger.info("Cloning element-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
-        // Clone riot-desktop at tag / branch to build from, e.g. v1.6.0
+        // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
         await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
         logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${type}`);
 
@@ -372,7 +372,7 @@ class DesktopReleaseBuilder {
 
         try {
             builder.appendScript('rd', buildDirName, '/s', '/q');
-            // Clone riot-desktop at tag / branch to build from, e.g. v1.6.0
+            // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
             builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName, '-b', this.desktopBranch);
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
