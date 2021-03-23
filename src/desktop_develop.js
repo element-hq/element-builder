@@ -279,6 +279,12 @@ class DesktopDevelopBuilder {
             logger.info("Built packages for: " + toBuild.join(', ') + ": pushing packages...");
             await pushArtifacts(this.pubDir, this.rsyncRoot);
             logger.info("...push complete!");
+        } catch (e) {
+            logger.error("Artifact sync failed!", e);
+            // Mark all types as failed if artifact sync fails
+            for (const type of toBuild) {
+                this.lastFailTimes[type] = Date.now();
+            }
         } finally {
             this.building = false;
         }

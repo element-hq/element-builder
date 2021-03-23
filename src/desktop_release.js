@@ -202,6 +202,8 @@ class DesktopReleaseBuilder {
             logger.info("Built packages for: " + toBuild.join(', ') + ": pushing packages...");
             await pushArtifacts(this.pubDir, this.rsyncRoot);
             logger.info("...push complete!");
+        } catch (e) {
+            logger.error("Artifact sync failed!", e);
         } finally {
             this.building = false;
         }
