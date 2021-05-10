@@ -67,10 +67,13 @@ async function log(level, ...args) {
         }, (res) => {
             res.on('end', resolve);
         });
+        // Set an error handler even though it's ignored to avoid Node exiting
+        // on unhandled errors.
+        req.on('error', e => {
+            // just ignore for now
+        });
         req.write(evData);
         req.end();
-    }).catch((e) => {
-        // just ignore for now
     });
 }
 
