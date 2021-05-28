@@ -31,7 +31,6 @@ jobs:
                   key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
 
             - name: Install modules
-              if: steps.yarn-cache.outputs.cache-hit != 'true'
               run: yarn install
 
             - name: Lint
