@@ -77,4 +77,4 @@ async function log(level, ...args) {
     });
 }
 
-module.exports = {setup, error, warn, info, debug};
+module.exports = { setup, error, warn, info, debug };

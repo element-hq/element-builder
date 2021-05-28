@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ if (rsyncServer === undefined) {
 }
 
 // For a release build, this is the tag / branch of element-desktop to build from.
-let desktopBranch = null;
+let desktopBranch: string = null;
 
 while (process.argv.length > 2) {
     switch (process.argv[2]) {
