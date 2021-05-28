@@ -1,0 +1,38 @@
+name: CI
+
+on:
+    push:
+        branches: [$default-branch]
+    pull_request:
+        branches: [$default-branch]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+
+            - name: Install Node
+              uses: actions/setup-node@v1
+              with:
+                  node-version: 14
+
+            - name: Install Yarn
+              run: npm install --global yarn@1
+
+            - name: Get Yarn cache directory
+              id: yarn-cache-dir
+              run: echo "::set-output name=dir::$(yarn cache dir)"
+
+            - uses: actions/cache@v1
+              id: yarn-cache
+              with:
+                  path: ${{ steps.yarn-cache-dir.outputs.dir }}
+                  key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+
+            - name: Install modules
+              if: steps.yarn-cache.outputs.cache-hit != 'true'
+              run: yarn install
+
+            - name: Lint
+              run: yarn lint
