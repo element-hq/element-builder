@@ -1,21 +1,17 @@
-const jsSdkEslintCfg = require('matrix-js-sdk/.eslintrc');
-
 module.exports = {
-    parser: "babel-eslint",
-    parserOptions: {
-        ecmaVersion: 8,
-    },
+    plugins: [
+        "matrix-org",
+    ],
+    extends: [
+        "plugin:matrix-org/typescript",
+    ],
     env: {
-        es6: true,
         node: true,
     },
-    extends: ["eslint:recommended", "google"],
-    plugins: ['babel'],
-    rules: jsSdkEslintCfg.rules,
-}
+    rules: {
+        // We aren't using ES modules here yet
+        "@typescript-eslint/no-var-requires": "off",
 
-// also override the line length to be consistent with
-// vector-web / react-sdk rather than js-sdk
-module.exports.rules["max-len"] = ["warn", {
-    code: 120,
-}];
+        "quotes": "off",
+    }
+};
