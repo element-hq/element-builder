@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const https = require('https');
+import * as https from 'https';
 
 let baseUrl;
 let mxAccessToken;
@@ -77,4 +77,4 @@ async function log(level, ...args) {
     });
 }
 
-module.exports = { setup, error, warn, info, debug };
+export default { setup, error, warn, info, debug };

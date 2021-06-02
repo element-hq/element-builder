@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const path = require('path');
-const fsProm = require('fs').promises;
-const childProcess = require('child_process');
+import * as path from 'path';
+import { promises as fsProm } from 'fs';
+import * as childProcess from 'child_process';
 
-const logger = require('./logger');
+import logger from './logger';
 
 const STARTVM_TIMEOUT = 90 * 1000;
 const POWEROFF_TIMEOUT = 20 * 1000;
@@ -35,7 +35,7 @@ const VCVARSALL = (
  * fails with I/O errors if you try to build on a shared drive (plus running a command
  * takes quite a long time).
  */
-class WindowsBuilder {
+export default class WindowsBuilder {
     constructor(cwd, arch, vmName, username, password, keyContainer) {
         this.cwd = cwd;
         this.arch = arch;
@@ -221,5 +221,3 @@ class WindowsBuilder {
         });
     }
 }
-
-module.exports = WindowsBuilder;

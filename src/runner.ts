@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const childProcess = require('child_process');
+import * as childProcess from 'child_process';
 
-const logger = require('./logger');
+import logger from './logger';
 
-class Runner {
+export default class Runner {
     constructor(cwd) {
         this.cwd = cwd;
     }
@@ -36,5 +36,3 @@ class Runner {
         });
     }
 }
-
-module.exports = Runner;
