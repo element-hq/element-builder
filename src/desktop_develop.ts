@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,20 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const fsProm = require('fs').promises;
-const path = require('path');
-const childProcess = require('child_process');
+import { promises as fsProm } from 'fs';
+import * as path from 'path';
+import * as childProcess from 'child_process';
 
-const rimraf = require('rimraf');
+import rimraf from 'rimraf';
 
-const getSecret = require('./get_secret');
-const GitRepo = require('./gitrepo');
-const logger = require('./logger');
+import getSecret from './get_secret';
+import GitRepo from './gitrepo';
+import logger from './logger';
 
-const Runner = require('./runner');
-const DockerRunner = require('./docker_runner');
+import Runner from './runner';
+import DockerRunner from './docker_runner';
 
-const WindowsBuilder = require('./windows_builder');
+import WindowsBuilder from './windows_builder';
 
 const TYPES = ['win64', 'mac', 'linux'];
 
@@ -201,7 +201,7 @@ async function pruneBuilds(dir, exp) {
     }
 }
 
-class DesktopDevelopBuilder {
+export default class DesktopDevelopBuilder {
     constructor(winVmName, winUsername, winPassword, rsyncRoot) {
         this.winVmName = winVmName;
         this.winUsername = winUsername;
@@ -513,5 +513,3 @@ class DesktopDevelopBuilder {
         });
     }
 }
-
-module.exports = DesktopDevelopBuilder;
