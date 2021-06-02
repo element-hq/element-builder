@@ -16,11 +16,11 @@ limitations under the License.
 
 import * as https from 'https';
 
-let baseUrl;
-let mxAccessToken;
-let mxRoomId;
+let baseUrl: string;
+let mxAccessToken: string;
+let mxRoomId: string;
 
-function setup(matrixServer, roomId, accessToken) {
+function setup(matrixServer: string, roomId: string, accessToken: string) {
     baseUrl = matrixServer;
     mxRoomId = roomId;
     mxAccessToken = accessToken;
@@ -42,7 +42,9 @@ function debug(...args) {
     return log('debug', ...args);
 }
 
-async function log(level, ...args) {
+type Level = 'error' | 'warn' | 'info' | 'debug';
+
+async function log(level: Level, ...args) {
     console[level](...args);
 
     if (baseUrl === undefined) return;

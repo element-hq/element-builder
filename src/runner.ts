@@ -18,12 +18,16 @@ import * as childProcess from 'child_process';
 
 import logger from './logger';
 
-export default class Runner {
-    constructor(cwd) {
-        this.cwd = cwd;
-    }
+export interface IRunner {
+    run(cmd: string, ...args): Promise<void>;
+}
 
-    run(cmd, ...args) {
+export default class Runner implements IRunner {
+    constructor(
+        private cwd: string,
+    ) { }
+
+    run(cmd: string, ...args): Promise<void> {
         logger.info([cmd, ...args].join(' '));
         return new Promise((resolve, reject) => {
             const proc = childProcess.spawn(cmd, args, {

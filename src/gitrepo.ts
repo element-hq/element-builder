@@ -17,15 +17,15 @@ limitations under the License.
 import * as childProcess from 'child_process';
 
 export default class GitRepo {
-    constructor(path) {
-        this.path = path;
-    }
+    constructor(
+        private path: string,
+    ) { }
 
-    fetch() {
+    public fetch(): Promise<string> {
         return this.gitCmd('fetch');
     }
 
-    clone(...args) {
+    public clone(...args): Promise<string> {
         return new Promise((resolve, reject) => {
             childProcess.execFile('git', ['clone', ...args], {}, (err, stdout) => {
                 if (err) {
@@ -37,15 +37,15 @@ export default class GitRepo {
         });
     }
 
-    checkout(...args) {
+    public checkout(...args): Promise<string> {
         return this.gitCmd('checkout', ...args);
     }
 
-    getHeadRev() {
+    public getHeadRev(): Promise<string> {
         return this.gitCmd('rev-parse', 'HEAD');
     }
 
-    gitCmd(cmd, ...args) {
+    private gitCmd(cmd: string, ...args): Promise<string> {
         return new Promise((resolve, reject) => {
             childProcess.execFile('git', [cmd, ...args], {
                 cwd: this.path,
