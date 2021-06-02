@@ -16,9 +16,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const logger = require('./logger');
-const DesktopDevelopBuilder = require('./desktop_develop');
-const DesktopReleaseBuilder = require('./desktop_release');
+import logger from './logger';
+import DesktopDevelopBuilder from './desktop_develop';
+import DesktopReleaseBuilder from './desktop_release';
 
 if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env.RIOTBUILD_ACCESS_TOKEN) {
     console.log("Logging to console + Matrix");
