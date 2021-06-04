@@ -241,8 +241,8 @@ export default class DesktopDevelopBuilder {
     private appPubDir = path.join(this.pubDir, 'nightly');
     private building = false;
     private riotSigningKeyContainer: string;
-    private lastBuildTimes = {} as Record<Type, number>;
-    private lastFailTimes = {} as Record<Type, number>;
+    private lastBuildTimes: Partial<Record<Type, number>> = {};
+    private lastFailTimes: Partial<Record<Type, number>> = {};
 
     constructor(
         private winVmName: string,
@@ -263,8 +263,8 @@ export default class DesktopDevelopBuilder {
         // is actually the key container in the format [{{passphrase}}]=container
         this.riotSigningKeyContainer = await getSecret('riot_key_container');
 
-        this.lastBuildTimes = {} as Record<Type, number>;
-        this.lastFailTimes = {} as Record<Type, number>;
+        this.lastBuildTimes = {};
+        this.lastFailTimes = {};
         for (const type of TYPES) {
             this.lastBuildTimes[type] = await getLastBuildTime(type);
             this.lastFailTimes[type] = 0;
