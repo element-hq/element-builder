@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import * as https from 'https';
 
 let baseUrl: string;
@@ -26,25 +28,25 @@ function setup(matrixServer: string, roomId: string, accessToken: string) {
     mxAccessToken = accessToken;
 }
 
-function error(...args) {
+function error(...args: any[]) {
     return log('error', ...args);
 }
 
-function warn(...args) {
+function warn(...args: any[]) {
     return log('warn', ...args);
 }
 
-function info(...args) {
+function info(...args: any[]) {
     return log('info', ...args);
 }
 
-function debug(...args) {
+function debug(...args: any[]) {
     return log('debug', ...args);
 }
 
 type Level = 'error' | 'warn' | 'info' | 'debug';
 
-async function log(level: Level, ...args) {
+async function log(level: Level, ...args: any[]) {
     console[level](...args);
 
     if (baseUrl === undefined) return;
