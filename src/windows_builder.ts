@@ -151,7 +151,7 @@ export default class WindowsBuilder {
         return runningList.includes(this.vmName);
     }
 
-    public appendScript(...args) {
+    public appendScript(...args: string[]) {
         this.script += args.filter((x) => {
             return x.includes(' ') ? '"' + x + '"' : x;
         }).join(' ') + "\r\n";
@@ -209,7 +209,7 @@ export default class WindowsBuilder {
         return this.vboxManage('guestcontrol', ...gustCtlArgs);
     }
 
-    private async vboxManage(cmd: string, ...args): Promise<void> {
+    private async vboxManage(cmd: string, ...args: string[]): Promise<void> {
         return new Promise((resolve, reject) => {
             const proc = childProcess.spawn('VBoxManage', [cmd].concat(args), {
                 stdio: 'inherit',
