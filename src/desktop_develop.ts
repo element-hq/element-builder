@@ -397,12 +397,14 @@ export default class DesktopDevelopBuilder {
 
         let runner: IRunner;
         switch (type) {
-            case 'mac':
+            case Type.macOS:
                 runner = this.makeMacRunner(repoDir);
                 break;
-            case 'linux':
+            case Type.Linux:
                 runner = this.makeLinuxRunner(repoDir);
                 break;
+            default:
+                throw new Error(`Unexpected local type ${type}`);
         }
 
         await this.buildWithRunner(runner, buildVersion, type);
