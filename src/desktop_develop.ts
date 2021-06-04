@@ -77,15 +77,16 @@ async function getLastBuildTime(type: Type): Promise<number> {
     try {
         return parseInt(await fsProm.readFile('desktop_develop_lastBuilt_' + type, 'utf8'));
     } catch (e) {
+        logger.error(`Unable to read last build time for ${type}`, e);
         return 0;
     }
 }
 
 async function putLastBuildTime(type: Type, t: number): Promise<void> {
     try {
-        return await fsProm.writeFile('desktop_develop_lastBuilt_' + type, t.toString());
+        await fsProm.writeFile('desktop_develop_lastBuilt_' + type, t.toString());
     } catch (e) {
-        return;
+        logger.error(`Unable to write last build time for ${type}`, e);
     }
 }
 
