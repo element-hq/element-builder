@@ -19,7 +19,7 @@ import * as childProcess from 'child_process';
 import logger from './logger';
 
 export interface IRunner {
-    run(cmd: string, ...args): Promise<void>;
+    run(cmd: string, ...args: string[]): Promise<void>;
 }
 
 export default class Runner implements IRunner {
@@ -27,7 +27,7 @@ export default class Runner implements IRunner {
         private cwd: string,
     ) { }
 
-    run(cmd: string, ...args): Promise<void> {
+    run(cmd: string, ...args: string[]): Promise<void> {
         logger.info([cmd, ...args].join(' '));
         return new Promise((resolve, reject) => {
             const proc = childProcess.spawn(cmd, args, {

@@ -30,7 +30,7 @@ export default class DockerRunner implements IRunner {
         private wrapper: string,
     ) { }
 
-    run(cmd: string, ...args): Promise<void> {
+    run(cmd: string, ...args: string[]): Promise<void> {
         logger.info([cmd, ...args].join(' '));
         return new Promise((resolve, reject) => {
             const proc = childProcess.spawn(this.wrapper, [cmd].concat(...args), {
