@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,35 +14,39 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const https = require('https');
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-let baseUrl;
-let mxAccessToken;
-let mxRoomId;
+import * as https from 'https';
 
-function setup(matrixServer, roomId, accessToken) {
+let baseUrl: string;
+let mxAccessToken: string;
+let mxRoomId: string;
+
+function setup(matrixServer: string, roomId: string, accessToken: string) {
     baseUrl = matrixServer;
     mxRoomId = roomId;
     mxAccessToken = accessToken;
 }
 
-function error(...args) {
+function error(...args: any[]) {
     return log('error', ...args);
 }
 
-function warn(...args) {
+function warn(...args: any[]) {
     return log('warn', ...args);
 }
 
-function info(...args) {
+function info(...args: any[]) {
     return log('info', ...args);
 }
 
-function debug(...args) {
+function debug(...args: any[]) {
     return log('debug', ...args);
 }
 
-async function log(level, ...args) {
+type Level = 'error' | 'warn' | 'info' | 'debug';
+
+async function log(level: Level, ...args: any[]) {
     console[level](...args);
 
     if (baseUrl === undefined) return;
@@ -77,4 +81,4 @@ async function log(level, ...args) {
     });
 }
 
-module.exports = { setup, error, warn, info, debug };
+export default { setup, error, warn, info, debug };

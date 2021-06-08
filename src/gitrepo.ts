@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,18 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const childProcess = require('child_process');
+import * as childProcess from 'child_process';
 
-class GitRepo {
-    constructor(path) {
-        this.path = path;
-    }
+export default class GitRepo {
+    constructor(
+        private path: string,
+    ) { }
 
-    fetch() {
+    public fetch(): Promise<string> {
         return this.gitCmd('fetch');
     }
 
-    clone(...args) {
+    public clone(...args): Promise<string> {
         return new Promise((resolve, reject) => {
             childProcess.execFile('git', ['clone', ...args], {}, (err, stdout) => {
                 if (err) {
@@ -37,15 +37,15 @@ class GitRepo {
         });
     }
 
-    checkout(...args) {
+    public checkout(...args): Promise<string> {
         return this.gitCmd('checkout', ...args);
     }
 
-    getHeadRev() {
+    public getHeadRev(): Promise<string> {
         return this.gitCmd('rev-parse', 'HEAD');
     }
 
-    gitCmd(cmd, ...args) {
+    private gitCmd(cmd: string, ...args): Promise<string> {
         return new Promise((resolve, reject) => {
             childProcess.execFile('git', [cmd, ...args], {
                 cwd: this.path,
@@ -59,5 +59,3 @@ class GitRepo {
         });
     }
 }
-
-module.exports = GitRepo;

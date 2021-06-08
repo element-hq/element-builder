@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const path = require('path');
-const fsProm = require('fs').promises;
-const childProcess = require('child_process');
+import * as path from 'path';
+import { promises as fsProm } from 'fs';
+import * as childProcess from 'child_process';
 
-const logger = require('./logger');
+import logger from './logger';
 
 const STARTVM_TIMEOUT = 90 * 1000;
 const POWEROFF_TIMEOUT = 20 * 1000;
@@ -35,18 +35,19 @@ const VCVARSALL = (
  * fails with I/O errors if you try to build on a shared drive (plus running a command
  * takes quite a long time).
  */
-class WindowsBuilder {
-    constructor(cwd, arch, vmName, username, password, keyContainer) {
-        this.cwd = cwd;
-        this.arch = arch;
-        this.vmName = vmName;
-        this.username = username;
-        this.password = password;
-        this.keyContainer = keyContainer;
-        this.script = '';
-    }
+export default class WindowsBuilder {
+    private script = "";
 
-    async start() {
+    constructor(
+        private cwd: string,
+        private arch: string,
+        private vmName: string,
+        private username: string,
+        private password: string,
+        private keyContainer: string,
+    ) { }
+
+    public async start(): Promise<void> {
         const isRunning = await this.isRunning();
         if (isRunning) {
             console.log("VM currently running: stopping");
@@ -78,16 +79,16 @@ class WindowsBuilder {
         await this.mapBuildDir();
     }
 
-    async pingVm() {
+    private async pingVm(): Promise<boolean> {
         try {
-            await this._run('ping -n 1 127.0.0.1');
+            await this.run('ping -n 1 127.0.0.1');
             return true;
         } catch (e) {
             return false;
         }
     }
 
-    async mapBuildDir() {
+    private async mapBuildDir(): Promise<void> {
         await this.vboxManage(
             'sharedfolder', 'add',
             this.vmName,
@@ -101,12 +102,12 @@ class WindowsBuilder {
             try {
                 attempts++;
                 try {
-                    await this._run('net use z: /delete /y');
+                    await this.run('net use z: /delete /y');
                 } catch (e) {
                 }
-                await this._run('net use z: \\\\vboxsvr\\builddir /y');
+                await this.run('net use z: \\\\vboxsvr\\builddir /y');
                 await new Promise(resolve => setTimeout(resolve, 4000));
-                await this._run('z:');
+                await this.run('z:');
                 logger.info("Mapped network drive in " + attempts + " attempts");
                 return;
             } catch (e) {
@@ -119,7 +120,7 @@ class WindowsBuilder {
         throw new Error("Unable to map network drive");
     }
 
-    async stop() {
+    public async stop(): Promise<void> {
         logger.info("Shutting down VM...");
         this.vboxManage('controlvm', this.vmName, 'acpipowerbutton');
         const waitUntil = Date.now() + POWEROFF_TIMEOUT;
@@ -140,19 +141,17 @@ class WindowsBuilder {
         }
     }
 
-    async isRunning() {
+    public async isRunning(): Promise<boolean> {
         // run() doesn't care about the output from VBoxManage but we do
-        const runningList = await new Promise((resolve, reject) => {
-            childProcess.execFile('VBoxManage', ['list', 'runningvms'], {
-                stdio: 'inherit',
-            }, (err, output) => {
+        const runningList = await new Promise<string>((resolve, reject) => {
+            childProcess.execFile('VBoxManage', ['list', 'runningvms'], (err, output) => {
                 err ? reject(err) : resolve(output);
             });
         });
         return runningList.includes(this.vmName);
     }
 
-    appendScript(...args) {
+    public appendScript(...args: string[]) {
         this.script += args.filter((x) => {
             return x.includes(' ') ? '"' + x + '"' : x;
         }).join(' ') + "\r\n";
@@ -161,7 +160,7 @@ class WindowsBuilder {
         this.script += 'if %errorlevel% neq 0 exit /b %errorlevel%\r\n';
     }
 
-    async runScript(script) {
+    public async runScript(): Promise<void> {
         const tmpCmdFile = path.join(this.cwd, 'tmp.cmd');
         const vcvarsArch = this.arch === 'win64' ? 'amd64' : 'x86';
         const fileContents = (
@@ -180,7 +179,7 @@ class WindowsBuilder {
         }, 60 * 1000);
 
         try {
-            const ret = await this._run('z:\\tmp.cmd');
+            const ret = await this.run('z:\\tmp.cmd');
             return ret;
         } finally {
             clearInterval(timer);
@@ -188,16 +187,16 @@ class WindowsBuilder {
         }
     }
 
-    async _run(runStr) {
-        console.log("running "+runStr);
+    private async run(runStr: string): Promise<void> {
+        console.log("running " + runStr);
 
         const gustCtlArgs = [
             this.vmName,
             '--username', this.username,
             '--password', this.password,
             'run',
-            '-E', 'BUILDKITE_API_KEY='+process.env.BUILDKITE_API_KEY,
-            '-E', 'SIGNING_KEY_CONTAINER='+this.keyContainer,
+            '-E', 'BUILDKITE_API_KEY=' + process.env.BUILDKITE_API_KEY,
+            '-E', 'SIGNING_KEY_CONTAINER=' + this.keyContainer,
             '--exe', 'cmd.exe', // The executable file to run
             '--', // Tell virtualbox to pass everything else through
             // The name of the program (basically arg0) (unsure why
@@ -210,7 +209,7 @@ class WindowsBuilder {
         return this.vboxManage('guestcontrol', ...gustCtlArgs);
     }
 
-    async vboxManage(cmd, ...args) {
+    private async vboxManage(cmd: string, ...args: string[]): Promise<void> {
         return new Promise((resolve, reject) => {
             const proc = childProcess.spawn('VBoxManage', [cmd].concat(args), {
                 stdio: 'inherit',
@@ -221,5 +220,3 @@ class WindowsBuilder {
         });
     }
 }
-
-module.exports = WindowsBuilder;

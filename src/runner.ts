@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2020-2021 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,25 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const childProcess = require('child_process');
+import * as childProcess from 'child_process';
 
-const logger = require('./logger');
+import logger from './logger';
 
-/**
- * Actually this isn't really a Docker runner: all the docker logic is
- * handled by the in-docker script which is passed in, but for now it's
- * probably least confusing to name it after the thing we use it for.
- */
-class DockerRunner {
-    constructor(cwd, wrapper) {
-        this.cwd = cwd;
-        this.wrapper = wrapper;
-    }
+export interface IRunner {
+    run(cmd: string, ...args: string[]): Promise<void>;
+}
 
-    run(cmd, ...args) {
+export default class Runner implements IRunner {
+    constructor(
+        private cwd: string,
+    ) { }
+
+    run(cmd: string, ...args: string[]): Promise<void> {
         logger.info([cmd, ...args].join(' '));
         return new Promise((resolve, reject) => {
-            const proc = childProcess.spawn(this.wrapper, [cmd].concat(...args), {
+            const proc = childProcess.spawn(cmd, args, {
                 stdio: 'inherit',
                 cwd: this.cwd,
             });
@@ -42,5 +40,3 @@ class DockerRunner {
         });
     }
 }
-
-module.exports = DockerRunner;
