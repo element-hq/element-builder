@@ -434,10 +434,10 @@ export default class DesktopDevelopBuilder {
         target: Target,
     ): Promise<void> {
         await runner.run('yarn', 'install');
-        await runner.run('yarn', 'run', 'hak', 'check');
-        await runner.run('yarn', 'run', 'build:native');
+        await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
+        await runner.run('yarn', 'run', 'build:native', '--target', target.id);
         await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'element.io/nightly');
-        await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
+        await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
     private async buildWin(target: WindowsTarget, buildVersion: string): Promise<void> {
@@ -462,19 +462,17 @@ export default class DesktopDevelopBuilder {
         await builder.start();
         logger.info("...builder started");
 
-        const electronBuilderArchFlag = `--${target.arch}`;
-
         try {
             builder.appendScript('rd', buildDirName, '/s', '/q');
             builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName);
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('call', 'yarn', 'install');
-            builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
-            builder.appendScript('call', 'yarn', 'run', 'build:native');
+            builder.appendScript('call', 'yarn', 'run', 'hak', 'check', '--target', target.id);
+            builder.appendScript('call', 'yarn', 'run', 'build:native', '--target', target.id);
             builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'element.io\\nightly');
             builder.appendScript(
-                'call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE,
+                'call', 'yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
             builder.appendScript('xcopy dist z:\\dist /S /I /Y');
             builder.appendScript('cd', '..');
