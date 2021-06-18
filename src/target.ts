@@ -93,3 +93,18 @@ export const ENABLED_TARGETS: Target[] = [
     TARGETS['x86_64-unknown-linux-gnu'],
     TARGETS['i686-pc-windows-msvc'],
 ];
+
+export function getHost(): Target {
+    return Object.values(TARGETS).find(target => (
+        target.platform === process.platform &&
+        target.arch === process.arch
+    ));
+}
+
+export function isHostId(id: TargetId): boolean {
+    return getHost()?.id === id;
+}
+
+export function isHost(target: Target): boolean {
+    return getHost()?.id === target.id;
+}
