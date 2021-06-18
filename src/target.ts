@@ -77,7 +77,7 @@ const x8664UnknownLinuxGnu: Target = {
     arch: 'x64',
 };
 
-const TARGETS: Record<TargetId, Target> = {
+export const TARGETS: Record<TargetId, Target> = {
     'aarch64-apple-darwin': aarch64AppleDarwin,
     'i686-pc-windows-msvc': i686PcWindowsMsvc,
     'x86_64-pc-windows-msvc': x8664PcWindowsMsvc,
