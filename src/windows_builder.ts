@@ -19,6 +19,7 @@ import { promises as fsProm } from 'fs';
 import * as childProcess from 'child_process';
 
 import logger from './logger';
+import { WindowsTarget } from './target';
 
 const STARTVM_TIMEOUT = 90 * 1000;
 const POWEROFF_TIMEOUT = 20 * 1000;
@@ -40,7 +41,7 @@ export default class WindowsBuilder {
 
     constructor(
         private cwd: string,
-        private arch: string,
+        private target: WindowsTarget,
         private vmName: string,
         private username: string,
         private password: string,
@@ -162,7 +163,7 @@ export default class WindowsBuilder {
 
     public async runScript(): Promise<void> {
         const tmpCmdFile = path.join(this.cwd, 'tmp.cmd');
-        const vcvarsArch = this.arch === 'win64' ? 'amd64' : 'x86';
+        const vcvarsArch = this.target.vcVarsArch;
         const fileContents = (
             "echo on\r\n" +
             "call \"" + VCVARSALL + '" ' + vcvarsArch + '\r\n' +

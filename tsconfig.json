@@ -2,8 +2,10 @@
     "compilerOptions": {
         "module": "commonjs",
         "target": "es2020",
+        "outDir": "./lib",
     },
     "include": [
+        ".eslintrc.js",
         "./src/**/*.ts",
     ]
 }
