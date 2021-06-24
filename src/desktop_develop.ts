@@ -18,7 +18,7 @@ import { promises as fsProm } from 'fs';
 import * as path from 'path';
 import * as childProcess from 'child_process';
 
-import rimraf from 'rimraf';
+import * as rimraf from 'rimraf';
 
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
