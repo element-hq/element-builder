@@ -91,7 +91,7 @@ export const ENABLED_TARGETS: Target[] = [
     TARGETS['x86_64-apple-darwin'],
     TARGETS['aarch64-apple-darwin'],
     TARGETS['x86_64-unknown-linux-gnu'],
-    TARGETS['i686-pc-windows-msvc'],
+    TARGETS['x86_64-pc-windows-msvc'],
 ];
 
 export function getHost(): Target {
