@@ -49,7 +49,7 @@ export default class DesktopReleaseBuilder {
         private desktopBranch: string,
     ) { }
 
-    async start() {
+    public async start(): Promise<void> {
         logger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
         this.building = false;
 
@@ -97,7 +97,11 @@ export default class DesktopReleaseBuilder {
         }
     }
 
-    async writeElectronBuilderConfigFile(type, repoDir, buildVersion) {
+    private async writeElectronBuilderConfigFile(
+        target: Target,
+        repoDir: string,
+        buildVersion: string,
+    ): Promise<void> {
         // Electron builder doesn't overlay with the config in package.json,
         // so load it here
         const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json')));
@@ -123,15 +127,15 @@ export default class DesktopReleaseBuilder {
         );
     }
 
-    async build(type) {
-        if (type.startsWith('win')) {
-            return this.buildWin(type);
+    private async build(target: Target, buildVersion: string): Promise<void> {
+        if (target.platform === 'win32') {
+            return this.buildWin(target as WindowsTarget, buildVersion);
         } else {
-            return this.buildLocal(type);
+            return this.buildLocal(target, buildVersion);
         }
     }
 
-    async buildLocal(type) {
+    private async buildLocal(target: Target, buildVersion: string): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
         const repoDir = path.join('builds', 'element-desktop-' + type + '-' + this.desktopBranch);
         await new Promise((resolve, reject) => {
@@ -209,15 +213,19 @@ export default class DesktopReleaseBuilder {
         });
     }
 
-    makeMacRunner(cwd) {
+    private makeMacRunner(cwd: string): IRunner {
         return new Runner(cwd);
     }
 
-    makeLinuxRunner(cwd) {
+    private makeLinuxRunner(cwd: string): IRunner {
         return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'));
     }
 
-    async buildWithRunner(runner, buildVersion, type) {
+    private async buildWithRunner(
+        runner: IRunner,
+        buildVersion: string,
+        target: Target,
+    ): Promise<void> {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check');
         await runner.run('yarn', 'run', 'build:native');
@@ -227,7 +235,7 @@ export default class DesktopReleaseBuilder {
         await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
-    async buildWin(type) {
+    private async buildWin(target: WindowsTarget, buildVersion: string): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
         const buildDirName = 'element-desktop-' + type + '-' + this.desktopBranch;
         const repoDir = path.join('builds', buildDirName);
