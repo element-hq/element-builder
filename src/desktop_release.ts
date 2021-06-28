@@ -17,8 +17,6 @@ limitations under the License.
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
 
-import * as rimraf from 'rimraf';
-
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
 import logger from './logger';
@@ -27,7 +25,7 @@ import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { ENABLED_TARGETS, Target, TargetId, WindowsTarget } from './target';
 import { setDebVersion, pullDebDatabase, pushDebDatabase, addDeb } from './debian';
-import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog } from './artifacts';
+import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog, rm } from './artifacts';
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -138,11 +136,7 @@ export default class DesktopReleaseBuilder {
     private async buildLocal(target: Target, buildVersion: string): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
         const repoDir = path.join('builds', 'element-desktop-' + type + '-' + this.desktopBranch);
-        await new Promise((resolve, reject) => {
-            rimraf(repoDir, (err) => {
-                err ? reject(err) : resolve();
-            });
-        });
+        await rm(repoDir);
         logger.info("Cloning element-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
         // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
@@ -206,11 +200,7 @@ export default class DesktopReleaseBuilder {
         }
 
         logger.info("Removing build dir");
-        await new Promise((resolve, reject) => {
-            rimraf(repoDir, (err) => {
-                err ? reject(err) : resolve();
-            });
-        });
+        await rm(repoDir);
     }
 
     private makeMacRunner(cwd: string): IRunner {
@@ -239,11 +229,7 @@ export default class DesktopReleaseBuilder {
         await fsProm.mkdir('builds', { recursive: true });
         const buildDirName = 'element-desktop-' + type + '-' + this.desktopBranch;
         const repoDir = path.join('builds', buildDirName);
-        await new Promise((resolve, reject) => {
-            rimraf(repoDir, (err) => {
-                err ? reject(err) : resolve();
-            });
-        });
+        await rm(repoDir);
 
         // we still check out the repo locally because we need package.json
         // to write the electron builder config file, so we check out the
@@ -327,10 +313,6 @@ export default class DesktopReleaseBuilder {
         }
 
         logger.info("Removing build dir");
-        await new Promise((resolve, reject) => {
-            rimraf(repoDir, (err) => {
-                err ? reject(err) : resolve();
-            });
-        });
+        await rm(repoDir);
     }
 }
