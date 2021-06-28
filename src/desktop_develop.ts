@@ -16,19 +16,18 @@ limitations under the License.
 
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
-import * as childProcess from 'child_process';
 
 import * as rimraf from 'rimraf';
 
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
 import logger from './logger';
-
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
-
 import WindowsBuilder from './windows_builder';
 import { ENABLED_TARGETS, Target, TargetId, WindowsTarget } from './target';
+import { setDebVersion, pullDebDatabase, pushDebDatabase, addDeb } from './debian';
+import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog } from './artifacts';
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -76,117 +75,6 @@ function getBuildVersion(): string {
     const date = now.getDate().toString().padStart(2, '0');
     const buildNum = '01';
     return now.getFullYear() + month + date + buildNum;
-}
-
-async function setDebVersion(ver: string, templateFile: string, outFile: string): Promise<void> {
-    // Create a debian package control file with the version.
-    // We use a custom control file so we need to do this ourselves
-    let contents = await fsProm.readFile(templateFile, 'utf8');
-    contents += 'Version: ' + ver + "\n";
-    await fsProm.writeFile(outFile, contents);
-
-    logger.info("Version set to " + ver);
-}
-
-async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<string[]> {
-    const ret = [];
-    for (const f of await fsProm.readdir(dir)) {
-        if (exp.test(f)) {
-            ret.push(f);
-        }
-    }
-    if (ret.length === 0) throw new Error("No files found matching " + exp.toString() + "!");
-    return ret;
-}
-
-async function getRepoTargets(repoDir: string): Promise<string[]> {
-    const confDistributions = await fsProm.readFile(path.join(repoDir, 'conf', 'distributions'), 'utf8');
-    const ret = [];
-    for (const line of confDistributions.split('\n')) {
-        if (line.startsWith('Codename')) {
-            ret.push(line.split(': ')[1]);
-        }
-    }
-    return ret;
-}
-
-function pullDebDatabase(debDir: string, rsyncRoot: string): Promise<void> {
-    logger.info("Pulling debian database...", rsyncRoot + 'debian/', debDir);
-    return new Promise((resolve, reject) => {
-        const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', rsyncRoot + 'debian/', debDir,
-        ], {
-            stdio: 'inherit',
-        });
-        proc.on('exit', code => {
-            code ? reject(code) : resolve();
-        });
-    });
-}
-
-function pushDebDatabase(debDir: string, rsyncRoot: string): Promise<void> {
-    logger.info("Pushing debian database...");
-    return new Promise((resolve, reject) => {
-        const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', debDir + '/', rsyncRoot + 'debian',
-        ], {
-            stdio: 'inherit',
-        });
-        proc.on('exit', code => {
-            code ? reject(code) : resolve();
-        });
-    });
-}
-
-async function addDeb(debDir: string, deb: string): Promise<void> {
-    const targets = await getRepoTargets(debDir);
-    logger.info("Adding " + deb + " for " + targets.join(', ') + "...");
-    for (const target of targets) {
-        await new Promise<void>((resolve, reject) => {
-            const proc = childProcess.spawn('reprepro', [
-                'includedeb', target, deb,
-            ], {
-                stdio: 'inherit',
-                cwd: debDir,
-            });
-            proc.on('exit', code => {
-                code ? reject(code) : resolve();
-            });
-        });
-    }
-}
-
-function pullArtifacts(pubDir: string, rsyncRoot: string): Promise<void> {
-    logger.info("Pulling artifacts...");
-    return new Promise((resolve, reject) => {
-        const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', rsyncRoot + 'packages.riot.im/', pubDir,
-        ], {
-            stdio: 'inherit',
-        });
-        proc.on('exit', code => {
-            code ? reject(code) : resolve();
-        });
-    });
-}
-
-function pushArtifacts(pubDir: string, rsyncRoot: string): Promise<void> {
-    logger.info("Uploading artifacts...");
-    return new Promise((resolve, reject) => {
-        const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', '--delay-updates', pubDir + '/', rsyncRoot + 'packages.riot.im',
-        ], {
-            stdio: 'inherit',
-        });
-        proc.on('exit', code => {
-            code ? reject(code) : resolve();
-        });
-    });
-}
-
-function copyAndLog(src: string, dest: string): Promise<void> {
-    logger.info('Copy ' + src + ' -> ' + dest);
-    return fsProm.copyFile(src, dest);
 }
 
 async function pruneBuilds(dir: string, exp: RegExp): Promise<void> {
