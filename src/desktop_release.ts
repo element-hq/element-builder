@@ -23,7 +23,7 @@ import logger from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
-import { ENABLED_TARGETS, Target, TargetId, WindowsTarget } from './target';
+import { ENABLED_TARGETS, Target, WindowsTarget } from './target';
 import { setDebVersion, pullDebDatabase, pushDebDatabase, addDeb } from './debian';
 import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog, rm } from './artifacts';
 
@@ -61,9 +61,7 @@ export default class DesktopReleaseBuilder {
 
         if (this.building) return;
 
-        // XXX: Could be simplified, keeping this mostly unchanged from the
-        // develop file for now...
-        const toBuild = TYPES;
+        const toBuild = ENABLED_TARGETS;
 
         if (toBuild.length === 0) return;
 
@@ -73,10 +71,10 @@ export default class DesktopReleaseBuilder {
             // Sync all the artifacts from the server before we start
             await pullArtifacts(this.pubDir, this.rsyncRoot);
 
-            for (const type of toBuild) {
+            for (const target of toBuild) {
                 try {
-                    logger.info(`Starting build of ${type} for ${this.desktopBranch}`);
-                    await this.build(type);
+                    logger.info(`Starting build of ${target.id} for ${this.desktopBranch}`);
+                    await this.build(target);
                 } catch (e) {
                     logger.error("Build failed!", e);
                     // if one fails, bail out of the whole process: probably better
@@ -85,7 +83,7 @@ export default class DesktopReleaseBuilder {
                 }
             }
 
-            logger.info("Built packages for: " + toBuild.join(', ') + ": pushing packages...");
+            logger.info("Built packages for: " + toBuild.map(t => t.id).join(', ') + ": pushing packages...");
             await pushArtifacts(this.pubDir, this.rsyncRoot);
             logger.info("...push complete!");
         } catch (e) {
@@ -102,12 +100,12 @@ export default class DesktopReleaseBuilder {
     ): Promise<void> {
         // Electron builder doesn't overlay with the config in package.json,
         // so load it here
-        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json')));
+        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8'));
         const cfg = pkg.build;
 
         // Electron crashes on debian if there's a space in the path.
         // https://github.com/vector-im/element-web/issues/13171
-        const productName = (type === 'linux') ? 'Element' : pkg.productName;
+        const productName = target.platform === 'linux' ? 'Element' : pkg.productName;
 
         Object.assign(cfg, {
             extraMetadata: {
@@ -125,28 +123,28 @@ export default class DesktopReleaseBuilder {
         );
     }
 
-    private async build(target: Target, buildVersion: string): Promise<void> {
+    private async build(target: Target): Promise<void> {
         if (target.platform === 'win32') {
-            return this.buildWin(target as WindowsTarget, buildVersion);
+            return this.buildWin(target as WindowsTarget);
         } else {
-            return this.buildLocal(target, buildVersion);
+            return this.buildLocal(target);
         }
     }
 
-    private async buildLocal(target: Target, buildVersion: string): Promise<void> {
+    private async buildLocal(target: Target): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
-        const repoDir = path.join('builds', 'element-desktop-' + type + '-' + this.desktopBranch);
+        const repoDir = path.join('builds', 'element-desktop-' + target.id + '-' + this.desktopBranch);
         await rm(repoDir);
         logger.info("Cloning element-desktop into " + repoDir);
         const repo = new GitRepo(repoDir);
         // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
         await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
-        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${type}`);
+        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${target.id}`);
 
-        const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).version;
+        const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8')).version;
 
-        await this.writeElectronBuilderConfigFile(type, repoDir, buildVersion);
-        if (type == 'linux') {
+        await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
+        if (target.platform == 'linux') {
             await setDebVersion(
                 buildVersion,
                 path.join(repoDir, 'element.io', 'release', 'control.template'),
@@ -154,20 +152,22 @@ export default class DesktopReleaseBuilder {
             );
         }
 
-        let runner;
-        switch (type) {
-            case 'mac':
+        let runner: IRunner;
+        switch (target.platform) {
+            case 'darwin':
                 runner = this.makeMacRunner(repoDir);
                 break;
             case 'linux':
                 runner = this.makeLinuxRunner(repoDir);
                 break;
+            default:
+                throw new Error(`Unexpected local target ${target.id}`);
         }
 
-        await this.buildWithRunner(runner, buildVersion, type);
+        await this.buildWithRunner(runner, buildVersion, target);
         logger.info("Build completed!");
 
-        if (type === 'mac') {
+        if (target.platform === 'darwin') {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
@@ -191,7 +191,7 @@ export default class DesktopReleaseBuilder {
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
             await fsProm.writeFile(latestPath, buildVersion);
-        } else if (type === 'linux') {
+        } else if (target.platform === 'linux') {
             await pullDebDatabase(this.debDir, this.rsyncRoot);
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
                 await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
@@ -217,17 +217,17 @@ export default class DesktopReleaseBuilder {
         target: Target,
     ): Promise<void> {
         await runner.run('yarn', 'install');
-        await runner.run('yarn', 'run', 'hak', 'check');
-        await runner.run('yarn', 'run', 'build:native');
+        await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
+        await runner.run('yarn', 'run', 'build:native', '--target', target.id);
         // This will fetch the Element release from GitHub that matches the version
         // in element-desktop's package.json.
         await runner.run('yarn', 'run', 'fetch', '-d', 'element.io/release');
-        await runner.run('yarn', 'build', '--config', ELECTRON_BUILDER_CFG_FILE);
+        await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
-    private async buildWin(target: WindowsTarget, buildVersion: string): Promise<void> {
+    private async buildWin(target: WindowsTarget): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
-        const buildDirName = 'element-desktop-' + type + '-' + this.desktopBranch;
+        const buildDirName = 'element-desktop-' + target.id + '-' + this.desktopBranch;
         const repoDir = path.join('builds', buildDirName);
         await rm(repoDir);
 
@@ -238,21 +238,19 @@ export default class DesktopReleaseBuilder {
         const repo = new GitRepo(repoDir);
         // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
         await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
-        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${type}`);
+        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${target.id}`);
 
-        const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'))).version;
+        const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8')).version;
 
-        await this.writeElectronBuilderConfigFile(type, repoDir, buildVersion);
+        await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
 
         const builder = new WindowsBuilder(
-            repoDir, type, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
+            repoDir, target, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
         );
 
-        logger.info("Starting Windows builder for " + type + '...');
+        logger.info("Starting Windows builder for " + target.id + '...');
         await builder.start();
         logger.info("...builder started");
-
-        const electronBuilderArchFlag = type === 'win64' ? '--x64' : '--ia32';
 
         try {
             builder.appendScript('rd', buildDirName, '/s', '/q');
@@ -261,13 +259,13 @@ export default class DesktopReleaseBuilder {
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('call', 'yarn', 'install');
-            builder.appendScript('call', 'yarn', 'run', 'hak', 'check');
-            builder.appendScript('call', 'yarn', 'run', 'build:native');
+            builder.appendScript('call', 'yarn', 'run', 'hak', 'check', '--target', target.id);
+            builder.appendScript('call', 'yarn', 'run', 'build:native', '--target', target.id);
             // This will fetch the Element release from GitHub that matches the
             // version in element-desktop's package.json.
             builder.appendScript('call', 'yarn', 'run', 'fetch', '-d', 'element.io\\release');
             builder.appendScript(
-                'call', 'yarn', 'build', electronBuilderArchFlag, '--config', ELECTRON_BUILDER_CFG_FILE,
+                'call', 'yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
             builder.appendScript('xcopy dist z:\\dist /S /I /Y');
             builder.appendScript('cd', '..');
@@ -277,8 +275,8 @@ export default class DesktopReleaseBuilder {
             await builder.runScript();
             logger.info("Build complete!");
 
-            const squirrelDir = 'squirrel-windows' + (type === 'win32' ? '-ia32' : '');
-            const archDir = type === 'win32' ? 'ia32' : 'x64';
+            const squirrelDir = 'squirrel-windows' + (target.arch === 'ia32' ? '-ia32' : '');
+            const archDir = target.arch;
 
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
