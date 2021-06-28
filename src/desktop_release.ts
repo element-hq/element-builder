@@ -32,21 +32,22 @@ import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog } from 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 
-class DesktopReleaseBuilder {
-    constructor(winVmName, winUsername, winPassword, rsyncRoot, desktopBranch) {
-        this.winVmName = winVmName;
-        this.winUsername = winUsername;
-        this.winPassword = winPassword;
-        this.rsyncRoot = rsyncRoot;
-        // This is the tag / branch of element-desktop to build from, e.g. v1.6.0
-        this.desktopBranch = desktopBranch;
+export default class DesktopReleaseBuilder {
+    private pubDir = path.join(process.cwd(), 'packages.riot.im');
+    // This should be a reprepro dir with a config redirecting
+    // the output to pub/debian
+    private debDir = path.join(process.cwd(), 'debian');
+    private appPubDir = path.join(this.pubDir, 'desktop');
+    private building = false;
+    private riotSigningKeyContainer: string;
 
-        this.pubDir = path.join(process.cwd(), 'packages.riot.im');
-        // This should be a reprepro dir with a config redirecting
-        // the output to pub/debian
-        this.debDir = path.join(process.cwd(), 'debian');
-        this.appPubDir = path.join(this.pubDir, 'desktop');
-    }
+    constructor(
+        private winVmName: string,
+        private winUsername: string,
+        private winPassword: string,
+        private rsyncRoot: string,
+        private desktopBranch: string,
+    ) { }
 
     async start() {
         logger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
@@ -325,5 +326,3 @@ class DesktopReleaseBuilder {
         });
     }
 }
-
-module.exports = DesktopReleaseBuilder;
