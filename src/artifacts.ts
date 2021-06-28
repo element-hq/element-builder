@@ -17,6 +17,8 @@ limitations under the License.
 import * as childProcess from 'child_process';
 import { promises as fsProm } from 'fs';
 
+import * as rimraf from 'rimraf';
+
 import logger from './logger';
 
 export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<string[]> {
@@ -63,4 +65,12 @@ export function pushArtifacts(pubDir: string, rsyncRoot: string): Promise<void> 
 export function copyAndLog(src: string, dest: string): Promise<void> {
     logger.info('Copy ' + src + ' -> ' + dest);
     return fsProm.copyFile(src, dest);
+}
+
+export function rm(path: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        rimraf(path, (err) => {
+            err ? reject(err) : resolve();
+        });
+    });
 }

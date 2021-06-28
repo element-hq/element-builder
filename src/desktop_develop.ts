@@ -17,8 +17,6 @@ limitations under the License.
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
 
-import * as rimraf from 'rimraf';
-
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
 import logger from './logger';
@@ -27,7 +25,7 @@ import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { ENABLED_TARGETS, Target, TargetId, WindowsTarget } from './target';
 import { setDebVersion, pullDebDatabase, pushDebDatabase, addDeb } from './debian';
-import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog } from './artifacts';
+import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog, rm } from './artifacts';
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -87,14 +85,6 @@ async function pruneBuilds(dir: string, exp: RegExp): Promise<void> {
     for (const f of toDelete) {
         await fsProm.unlink(path.join(dir, f));
     }
-}
-
-function rm(path: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        rimraf(path, (err) => {
-            err ? reject(err) : resolve();
-        });
-    });
 }
 
 export default class DesktopDevelopBuilder {
