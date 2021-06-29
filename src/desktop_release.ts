@@ -168,29 +168,54 @@ export default class DesktopReleaseBuilder {
         logger.info("Build completed!");
 
         if (target.platform === 'darwin') {
-            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
-            await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos', target.arch), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos', target.arch), { recursive: true });
 
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'install', 'macos', f),
+                    path.join(this.appPubDir, 'install', 'macos', target.arch, f),
                 );
 
-                // This skips ahead to the future and drops "(Riot)" from the main
-                // download link.
-                const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
+                const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', target.arch, 'Element.dmg');
                 logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
                 await fsProm.unlink(latestInstallPath);
                 await fsProm.symlink(f, latestInstallPath, 'file');
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
-                await copyAndLog(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
+                await copyAndLog(
+                    path.join(repoDir, 'dist', f),
+                    path.join(this.appPubDir, 'update', 'macos', target.arch, f),
+                );
             }
 
-            const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
+            const latestPath = path.join(this.appPubDir, 'update', 'macos', target.arch, 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
             await fsProm.writeFile(latestPath, buildVersion);
+
+            // For backwards compat with older versions trying to update as well
+            // as existing links in the wild, we also copy the x64 version to
+            // the generic locations without the architecture.
+            if (target.arch === 'x64') {
+                for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
+                    await copyAndLog(
+                        path.join(repoDir, 'dist', f),
+                        path.join(this.appPubDir, 'install', 'macos', f),
+                    );
+
+                    const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
+                    logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
+                    await fsProm.unlink(latestInstallPath);
+                    await fsProm.symlink(f, latestInstallPath, 'file');
+                }
+                for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
+                    await copyAndLog(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
+                }
+
+                const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
+                logger.info('Write ' + buildVersion + ' -> ' + latestPath);
+                await fsProm.writeFile(latestPath, buildVersion);
+            }
         } else if (target.platform === 'linux') {
             await pullDebDatabase(this.debDir, this.rsyncRoot);
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
@@ -287,8 +312,6 @@ export default class DesktopReleaseBuilder {
                     path.join(this.appPubDir, 'install', 'win32', archDir, f),
                 );
 
-                // This skips ahead to the future and drops "(Riot)" from the main
-                // download link.
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
                 logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
                 await fsProm.unlink(latestInstallPath);
