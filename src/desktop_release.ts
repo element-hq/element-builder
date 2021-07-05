@@ -179,7 +179,12 @@ export default class DesktopReleaseBuilder {
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', target.arch, 'Element.dmg');
                 logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
-                await fsProm.unlink(latestInstallPath);
+                try {
+                    await fsProm.unlink(latestInstallPath);
+                } catch (e) {
+                    // probably just didn't exist
+                    logger.info("Failed to remove latest symlink", e);
+                }
                 await fsProm.symlink(f, latestInstallPath, 'file');
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
@@ -205,7 +210,12 @@ export default class DesktopReleaseBuilder {
 
                     const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
                     logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
-                    await fsProm.unlink(latestInstallPath);
+                    try {
+                        await fsProm.unlink(latestInstallPath);
+                    } catch (e) {
+                        // probably just didn't exist
+                        logger.info("Failed to remove latest symlink", e);
+                    }
                     await fsProm.symlink(f, latestInstallPath, 'file');
                 }
                 for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
