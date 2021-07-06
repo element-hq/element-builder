@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { promises as fsProm } from 'fs';
+import * as childProcess from 'child_process';
 import * as path from 'path';
 
 import getSecret from './get_secret';
@@ -143,6 +144,24 @@ export default class DesktopReleaseBuilder {
         );
     }
 
+    private async copyGnupgDir(repoDir: string) {
+        // Node has a native recursive delete but no recursive copy
+        // We don't need to be cross-platform for this bit so just
+        // use the shell rather than pulling in a dependency
+        // We copy rather than symlink so an individual builder can't
+        // overwrite the cert used for all the other ones.
+        return new Promise<void>((resolve, reject) => {
+            const proc = childProcess.spawn('cp', [
+                '-r', this.gnupgDir, path.join(repoDir, 'gnupg'),
+            ], {
+                stdio: 'inherit',
+            });
+            proc.on('exit', code => {
+                code ? reject(code) : resolve();
+            });
+        });
+    }
+
     private async build(target: Target): Promise<void> {
         if (target.platform === 'win32') {
             return this.buildWin(target as WindowsTarget);
@@ -172,7 +191,7 @@ export default class DesktopReleaseBuilder {
             );
         }
 
-        await fsProm.symlink(path.join(repoDir, 'gnupg'), this.gnupgDir);
+        await this.copyGnupgDir(repoDir);
 
         let runner: IRunner;
         switch (target.platform) {
@@ -305,7 +324,7 @@ export default class DesktopReleaseBuilder {
 
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
 
-        await fsProm.symlink(path.join(repoDir, 'gnupg'), this.gnupgDir);
+        await this.copyGnupgDir(repoDir);
 
         const builder = new WindowsBuilder(
             repoDir, target, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
