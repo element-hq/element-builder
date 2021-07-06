@@ -38,6 +38,7 @@ const VCVARSALL = (
  */
 export default class WindowsBuilder {
     private script = "";
+    private env: NodeJS.ProcessEnv;
 
     constructor(
         private cwd: string,
@@ -46,7 +47,14 @@ export default class WindowsBuilder {
         private username: string,
         private password: string,
         private keyContainer: string,
-    ) { }
+        env?: NodeJS.ProcessEnv,
+    ) {
+        if (env) {
+            this.env = env;
+        } else {
+            this.env = {};
+        }
+    }
 
     public async start(): Promise<void> {
         const isRunning = await this.isRunning();
@@ -191,13 +199,20 @@ export default class WindowsBuilder {
     private async run(runStr: string): Promise<void> {
         console.log("running " + runStr);
 
-        const gustCtlArgs = [
+        const guestCtlArgs = [
             this.vmName,
             '--username', this.username,
             '--password', this.password,
             'run',
             '-E', 'BUILDKITE_API_KEY=' + process.env.BUILDKITE_API_KEY,
             '-E', 'SIGNING_KEY_CONTAINER=' + this.keyContainer,
+        ];
+
+        for (const [k, v] of Object.entries(this.env)) {
+            guestCtlArgs.push('-E', k + '=' + v);
+        }
+
+        guestCtlArgs.push(...[
             '--exe', 'cmd.exe', // The executable file to run
             '--', // Tell virtualbox to pass everything else through
             // The name of the program (basically arg0) (unsure why
@@ -205,9 +220,9 @@ export default class WindowsBuilder {
             'cmd',
             '/C',
             runStr,
-        ];
+        ]);
 
-        return this.vboxManage('guestcontrol', ...gustCtlArgs);
+        return this.vboxManage('guestcontrol', ...guestCtlArgs);
     }
 
     private async vboxManage(cmd: string, ...args: string[]): Promise<void> {
