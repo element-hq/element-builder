@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import { promises as fsProm } from 'fs';
-import * as childProcess from 'child_process';
 import * as path from 'path';
 
 import getSecret from './get_secret';
