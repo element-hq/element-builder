@@ -145,21 +145,20 @@ export default class DesktopReleaseBuilder {
     }
 
     private async copyGnupgDir(repoDir: string) {
-        // Node has a native recursive delete but no recursive copy
-        // We don't need to be cross-platform for this bit so just
-        // use the shell rather than pulling in a dependency
+        const dest = path.join(repoDir, 'gnupg')
         // We copy rather than symlink so an individual builder can't
-        // overwrite the cert used for all the other ones.
-        return new Promise<void>((resolve, reject) => {
-            const proc = childProcess.spawn('cp', [
-                '-r', this.gnupgDir, path.join(repoDir, 'gnupg'),
-            ], {
-                stdio: 'inherit',
-            });
-            proc.on('exit', code => {
-                code ? reject(code) : resolve();
-            });
-        });
+        // overwrite the cert used for all the other ones, however
+        // a) node doesn't have a recursive copy and b) the gpg
+        // home directory contains sockets which can't just be
+        // copied, so just copy specific files.
+        await fsProm.mkdir(dest);
+
+        for (const f of ['pubring.kbx', 'trustdb.gpg']) {
+            await copyAndLog(
+                path.join(this.gnupgDir, f),
+                path.join(dest, f),
+            );
+        }
     }
 
     private async build(target: Target): Promise<void> {
