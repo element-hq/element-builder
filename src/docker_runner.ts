@@ -25,10 +25,17 @@ import { IRunner } from './runner';
  * probably least confusing to name it after the thing we use it for.
  */
 export default class DockerRunner implements IRunner {
+    private env: NodeJS.ProcessEnv;
+
     constructor(
         private cwd: string,
         private wrapper: string,
-    ) { }
+        env?: NodeJS.ProcessEnv,
+    ) {
+        if (env) {
+            this.env = Object.assign(process.env, env);
+        }
+    }
 
     run(cmd: string, ...args: string[]): Promise<void> {
         logger.info([cmd, ...args].join(' '));
@@ -36,6 +43,7 @@ export default class DockerRunner implements IRunner {
             const proc = childProcess.spawn(this.wrapper, [cmd].concat(...args), {
                 stdio: 'inherit',
                 cwd: this.cwd,
+                env: this.env,
             });
             proc.on('exit', (code) => {
                 code ? reject(code) : resolve();

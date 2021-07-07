@@ -23,9 +23,16 @@ export interface IRunner {
 }
 
 export default class Runner implements IRunner {
+    private env: NodeJS.ProcessEnv;
+
     constructor(
         private cwd: string,
-    ) { }
+        env?: NodeJS.ProcessEnv,
+    ) {
+        if (env) {
+            this.env = Object.assign(process.env, env);
+        }
+    }
 
     run(cmd: string, ...args: string[]): Promise<void> {
         logger.info([cmd, ...args].join(' '));
@@ -33,6 +40,7 @@ export default class Runner implements IRunner {
             const proc = childProcess.spawn(cmd, args, {
                 stdio: 'inherit',
                 cwd: this.cwd,
+                env: this.env,
             });
             proc.on('exit', (code) => {
                 code ? reject(code) : resolve();

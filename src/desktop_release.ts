@@ -36,6 +36,7 @@ export default class DesktopReleaseBuilder {
     // the output to pub/debian
     private debDir = path.join(process.cwd(), 'debian');
     private appPubDir = path.join(this.pubDir, 'desktop');
+    private gnupgDir = path.join(process.cwd(), 'gnupg');
     private building = false;
     private riotSigningKeyContainer: string;
 
@@ -50,6 +51,25 @@ export default class DesktopReleaseBuilder {
     public async start(): Promise<void> {
         logger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
         this.building = false;
+
+        try {
+            await fsProm.stat(this.gnupgDir);
+        } catch (e) {
+            logger.error("No 'gnupg' directory found");
+            logger.error(
+                "This should be a separate gpg home directory that trusts the element release " +
+                "public key (without any private keys) that will be passed into the builders to",
+                "verify the package they download",
+            );
+            logger.error("You can create this by running:\n");
+            logger.error(
+                "> mkdir gnupg && curl -s https://packages.riot.im/element-release-key.asc | " +
+                "gpg --homedir gnupg --import",
+            );
+            return;
+        }
+
+        logger.info("Using gnupg homedir " + this.gnupgDir);
 
         // get the token passphrase now so a) we fail early if it's not in the keychain
         // and b) we know the keychain is unlocked because someone's sitting at the
@@ -123,6 +143,23 @@ export default class DesktopReleaseBuilder {
         );
     }
 
+    private async copyGnupgDir(repoDir: string) {
+        const dest = path.join(repoDir, 'gnupg')
+        // We copy rather than symlink so an individual builder can't
+        // overwrite the cert used for all the other ones, however
+        // a) node doesn't have a recursive copy and b) the gpg
+        // home directory contains sockets which can't just be
+        // copied, so just copy specific files.
+        await fsProm.mkdir(dest);
+
+        for (const f of ['pubring.kbx', 'trustdb.gpg']) {
+            await copyAndLog(
+                path.join(this.gnupgDir, f),
+                path.join(dest, f),
+            );
+        }
+    }
+
     private async build(target: Target): Promise<void> {
         if (target.platform === 'win32') {
             return this.buildWin(target as WindowsTarget);
@@ -151,6 +188,8 @@ export default class DesktopReleaseBuilder {
                 path.join(repoDir, 'debcontrol'),
             );
         }
+
+        await this.copyGnupgDir(repoDir);
 
         let runner: IRunner;
         switch (target.platform) {
@@ -239,11 +278,15 @@ export default class DesktopReleaseBuilder {
     }
 
     private makeMacRunner(cwd: string): IRunner {
-        return new Runner(cwd);
+        return new Runner(cwd, {
+            GNUPGHOME: 'gnupg',
+        });
     }
 
     private makeLinuxRunner(cwd: string): IRunner {
-        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'));
+        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'), {
+            GNUPGHOME: 'gnupg',
+        });
     }
 
     private async buildWithRunner(
@@ -279,8 +322,13 @@ export default class DesktopReleaseBuilder {
 
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
 
+        await this.copyGnupgDir(repoDir);
+
         const builder = new WindowsBuilder(
             repoDir, target, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
+            {
+                GNUPGHOME: 'gnupg',
+            },
         );
 
         logger.info("Starting Windows builder for " + target.id + '...');
@@ -293,6 +341,7 @@ export default class DesktopReleaseBuilder {
             builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName, '-b', this.desktopBranch);
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
+            builder.appendScript('xcopy', 'z:\\gnupg', 'gnupg', '/S', '/I', '/Y');
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check', '--target', target.id);
             builder.appendScript('call', 'yarn', 'run', 'build:native', '--target', target.id);
