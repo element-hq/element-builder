@@ -347,7 +347,14 @@ export default class DesktopDevelopBuilder {
 
     private async buildWin(target: WindowsTarget, buildVersion: string): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
-        const buildDirName = 'element-desktop-' + target.id + '-' + buildVersion;
+        // We're now running into Window's 260 character path limit. Adding a step
+        // of 'faff about in the registry enabling NTFS long paths' to the list of
+        // things to do when setting up a build box seems undesirable: this is an easy
+        // place to save some characters: abbreviate element-desktop, omit the hyphens
+        // and just use the arch (becuse, at least at the moment, the only vaguely
+        // supported variations on windows is the arch).
+        //const buildDirName = 'element-desktop-' + target.id + '-' + buildVersion;
+        const buildDirName = 'ed' + target.arch + buildVersion;
         const repoDir = path.join('builds', buildDirName);
         await rm(repoDir);
 
