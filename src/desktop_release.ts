@@ -308,7 +308,9 @@ export default class DesktopReleaseBuilder {
 
     private async buildWin(target: WindowsTarget): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
-        const buildDirName = 'element-desktop-' + target.id + '-' + this.desktopBranch;
+        // Windows long paths (see desktop_develop.ts)
+        //const buildDirName = 'element-desktop-' + target.id + '-' + this.desktopBranch;
+        const buildDirName = 'ed' + target.arch + buildVersion;
         const repoDir = path.join('builds', buildDirName);
         await rm(repoDir);
 
