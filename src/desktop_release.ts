@@ -310,7 +310,7 @@ export default class DesktopReleaseBuilder {
         await fsProm.mkdir('builds', { recursive: true });
         // Windows long paths (see desktop_develop.ts)
         //const buildDirName = 'element-desktop-' + target.id + '-' + this.desktopBranch;
-        const buildDirName = 'ed' + target.arch + buildVersion;
+        const buildDirName = 'ed' + target.arch + this.desktopBranch;
         const repoDir = path.join('builds', buildDirName);
         await rm(repoDir);
 
