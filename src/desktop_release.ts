@@ -152,7 +152,10 @@ export default class DesktopReleaseBuilder {
         // copied, so just copy specific files.
         await fsProm.mkdir(dest);
 
-        for (const f of ['pubring.kbx', 'trustdb.gpg']) {
+        // XXX: The docker image we use has gnupg 1 so uses
+        // pubring.gpg rather than pubring.kbx. If we use the
+        // old gpg format, that works with both.
+        for (const f of ['pubring.gpg', 'trustdb.gpg']) {
             await copyAndLog(
                 path.join(this.gnupgDir, f),
                 path.join(dest, f),
