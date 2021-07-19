@@ -288,7 +288,7 @@ export default class DesktopReleaseBuilder {
 
     private makeLinuxRunner(cwd: string): IRunner {
         return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'), {
-            GNUPGHOME: 'gnupg',
+            INDOCKER_GNUPGHOME: 'gnupg',
         });
     }
 
