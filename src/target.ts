@@ -81,7 +81,7 @@ const x8664UnknownLinuxGnu: Target = {
 const aarch64UnknownLinuxGnu: Target = {
     id: 'aarch64-unknown-linux-gnu',
     platform: 'linux',
-    arch: 'arm64'
+    arch: 'arm64',
 };
 
 export const TARGETS: Record<TargetId, Target> = {
