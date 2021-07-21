@@ -330,7 +330,10 @@ export default class DesktopDevelopBuilder {
     }
 
     private makeLinuxRunner(cwd: string): IRunner {
-        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'));
+        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'), {
+            // Develop build needs the buildkite api key to fetch the web build
+            INDOCKER_BUILDKITE_API_KEY: process.env['BUILDKITE_API_KEY'],
+        });
     }
 
     private async buildWithRunner(
