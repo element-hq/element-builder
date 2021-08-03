@@ -41,34 +41,6 @@ export async function setDebVersion(ver: string, templateFile: string, outFile: 
     logger.info("Version set to " + ver);
 }
 
-export function pullDebDatabase(debDir: string, rsyncRoot: string): Promise<void> {
-    logger.info("Pulling debian database...", rsyncRoot + 'debian/', debDir);
-    return new Promise((resolve, reject) => {
-        const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', rsyncRoot + 'debian/', debDir,
-        ], {
-            stdio: 'inherit',
-        });
-        proc.on('exit', code => {
-            code ? reject(code) : resolve();
-        });
-    });
-}
-
-export function pushDebDatabase(debDir: string, rsyncRoot: string): Promise<void> {
-    logger.info("Pushing debian database...");
-    return new Promise((resolve, reject) => {
-        const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', debDir + '/', rsyncRoot + 'debian',
-        ], {
-            stdio: 'inherit',
-        });
-        proc.on('exit', code => {
-            code ? reject(code) : resolve();
-        });
-    });
-}
-
 export async function addDeb(debDir: string, deb: string): Promise<void> {
     const targets = await getRepoTargets(debDir);
     logger.info("Adding " + deb + " for " + targets.join(', ') + "...");

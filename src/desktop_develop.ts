@@ -24,8 +24,8 @@ import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { ENABLED_TARGETS, Target, TargetId, WindowsTarget } from './target';
-import { setDebVersion, pullDebDatabase, pushDebDatabase, addDeb } from './debian';
-import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog, rm } from './artifacts';
+import { setDebVersion, addDeb } from './debian';
+import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -146,9 +146,6 @@ export default class DesktopDevelopBuilder {
 
         try {
             this.building = true;
-
-            // Sync all the artifacts from the server before we start
-            await pullArtifacts(this.pubDir, this.rsyncRoot);
 
             for (const target of toBuild) {
                 try {
@@ -314,11 +311,9 @@ export default class DesktopDevelopBuilder {
                 await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
             }
         } else if (target.platform === 'linux') {
-            await pullDebDatabase(this.debDir, this.rsyncRoot);
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
                 await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
             }
-            await pushDebDatabase(this.debDir, this.rsyncRoot);
         }
 
         logger.info("Removing build dir");

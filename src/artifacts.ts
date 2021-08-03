@@ -34,26 +34,6 @@ export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<s
     return ret;
 }
 
-export function pullArtifacts(pubDir: string, rsyncRoot: string): Promise<void> {
-    logger.info("Pulling artifacts...");
-    return new Promise((resolve, reject) => {
-        const proc = childProcess.spawn('rsync', [
-            // NB. We don't pass --delete here so if we want to delete any files from the packaging server,
-            // we need to do so by deleting them on the build box copy and then letting the delete sync
-            // over, rather than deleting directly on the server, else they'll just sync back again.
-            // This is because we copy built artifacts directly into our copy of the repo after each
-            // one is built, so if a build fails, we'd delete the built artifact when we pulled the
-            // artifacts at next startup.
-            '-av', rsyncRoot + 'packages.riot.im/', pubDir,
-        ], {
-            stdio: 'inherit',
-        });
-        proc.on('exit', code => {
-            code ? reject(code) : resolve();
-        });
-    });
-}
-
 export function pushArtifacts(pubDir: string, rsyncRoot: string): Promise<void> {
     logger.info("Uploading artifacts...");
     return new Promise((resolve, reject) => {
