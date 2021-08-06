@@ -23,7 +23,7 @@ import logger from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
-import { ENABLED_TARGETS, Target, WindowsTarget } from './target';
+import { ENABLED_TARGETS, Target, UniversalTarget, WindowsTarget } from './target';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
 
