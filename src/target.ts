@@ -22,7 +22,8 @@ export type TargetId =
     'i686-pc-windows-msvc' |
     'x86_64-pc-windows-msvc' |
     'x86_64-apple-darwin' |
-    'x86_64-unknown-linux-gnu';
+    'x86_64-unknown-linux-gnu' |
+    'aarch64-unknown-linux-gnu';
 
 // Values are expected to match those used in `process.platform`.
 type Platform = 'darwin' | 'linux' | 'win32';
@@ -77,12 +78,19 @@ const x8664UnknownLinuxGnu: Target = {
     arch: 'x64',
 };
 
+const aarch64UnknownLinuxGnu: Target = {
+    id: 'aarch64-unknown-linux-gnu',
+    platform: 'linux',
+    arch: 'arm64',
+};
+
 export const TARGETS: Record<TargetId, Target> = {
     'aarch64-apple-darwin': aarch64AppleDarwin,
     'i686-pc-windows-msvc': i686PcWindowsMsvc,
     'x86_64-pc-windows-msvc': x8664PcWindowsMsvc,
     'x86_64-apple-darwin': x8664AppleDarwin,
     'x86_64-unknown-linux-gnu': x8664UnknownLinuxGnu,
+    'aarch64-unknown-linux-gnu': aarch64UnknownLinuxGnu,
 };
 
 // The set of targets we build by default, sorted by increasing complexity so
@@ -92,6 +100,7 @@ export const ENABLED_TARGETS: Target[] = [
     TARGETS['aarch64-apple-darwin'],
     TARGETS['x86_64-unknown-linux-gnu'],
     TARGETS['x86_64-pc-windows-msvc'],
+    TARGETS['aarch64-unknown-linux-gnu'],
 ];
 
 export function getHost(): Target {
