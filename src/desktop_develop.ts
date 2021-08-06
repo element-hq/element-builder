@@ -23,7 +23,7 @@ import logger from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
-import { ENABLED_TARGETS, Target, TargetId, WindowsTarget } from './target';
+import { ENABLED_TARGETS, Target, TargetId, UniversalTarget, WindowsTarget } from './target';
 import { setDebVersion, pullDebDatabase, pushDebDatabase, addDeb } from './debian';
 import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog, rm } from './artifacts';
 
@@ -343,7 +343,13 @@ export default class DesktopDevelopBuilder {
     ): Promise<void> {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
-        await runner.run('yarn', 'run', 'build:native', '--target', target.id);
+        if (target.arch == 'universal') {
+            for (const subTarget of (target as UniversalTarget).subtargets) {
+                await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
+            }
+        } else {
+            await runner.run('yarn', 'run', 'build:native', '--target', target.id);
+        }
         await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'element.io/nightly');
         await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
     }
