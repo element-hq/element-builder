@@ -262,54 +262,30 @@ export default class DesktopDevelopBuilder {
         logger.info("Build completed!");
 
         if (target.platform === 'darwin') {
-            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos', target.arch), { recursive: true });
-            await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos', target.arch), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     // be consistent with windows and don't bother putting the version number
                     // in the installer
-                    path.join(this.appPubDir, 'install', 'macos', target.arch, 'Element Nightly.dmg'),
+                    path.join(this.appPubDir, 'install', 'macos', 'Element Nightly.dmg'),
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'update', 'macos', target.arch, f),
+                    path.join(this.appPubDir, 'update', 'macos', f),
                 );
             }
 
-            const latestPath = path.join(this.appPubDir, 'update', 'macos', target.arch, 'latest');
+            const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
             await fsProm.writeFile(latestPath, buildVersion);
 
             // prune update packages (the installer will just overwrite each time)
-            await pruneBuilds(path.join(this.appPubDir, 'update', 'macos', target.arch), /-mac.zip$/);
-
-            // For backwards compat with older versions trying to update as well
-            // as existing links in the wild, we also copy the x64 version to
-            // the generic locations without the architecture.
-            if (target.arch === 'x64') {
-                for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
-                    await copyAndLog(
-                        path.join(repoDir, 'dist', f),
-                        // be consistent with windows and don't bother putting the version number
-                        // in the installer
-                        path.join(this.appPubDir, 'install', 'macos', 'Element Nightly.dmg'),
-                    );
-                }
-                for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
-                    await copyAndLog(path.join(repoDir, 'dist', f), path.join(this.appPubDir, 'update', 'macos', f));
-                }
-
-                const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
-                logger.info('Write ' + buildVersion + ' -> ' + latestPath);
-                await fsProm.writeFile(latestPath, buildVersion);
-
-                // prune update packages (the installer will just overwrite each time)
-                await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
-            }
+            await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
         } else if (target.platform === 'linux') {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
                 await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
@@ -337,12 +313,21 @@ export default class DesktopDevelopBuilder {
         target: Target,
     ): Promise<void> {
         await runner.run('yarn', 'install');
-        await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
         if (target.arch == 'universal') {
+            for (const subTarget of (target as UniversalTarget).subtargets) {
+                await runner.run('yarn', 'run', 'hak', 'check', '--target', subTarget.id);
+            }
             for (const subTarget of (target as UniversalTarget).subtargets) {
                 await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
             }
+            const targetArgs = [];
+            for (const st of (target as UniversalTarget).subtargets) {
+                targetArgs.push('--target');
+                targetArgs.push(st.id);
+            }
+            await runner.run('yarn', 'run', 'hak', 'copy', ...targetArgs);
         } else {
+            await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
             await runner.run('yarn', 'run', 'build:native', '--target', target.id);
         }
         await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'element.io/nightly');
