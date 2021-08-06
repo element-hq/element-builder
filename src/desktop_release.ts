@@ -23,7 +23,7 @@ import logger from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
-import { ENABLED_TARGETS, Target, WindowsTarget } from './target';
+import { ENABLED_TARGETS, Target, UniversalTarget, WindowsTarget } from './target';
 import { setDebVersion, pullDebDatabase, pushDebDatabase, addDeb } from './debian';
 import { getMatchingFilesInDir, pullArtifacts, pushArtifacts, copyAndLog, rm } from './artifacts';
 
@@ -299,7 +299,13 @@ export default class DesktopReleaseBuilder {
     ): Promise<void> {
         await runner.run('yarn', 'install');
         await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
-        await runner.run('yarn', 'run', 'build:native', '--target', target.id);
+        if (target.arch == 'universal') {
+            for (const subTarget of (target as UniversalTarget).subtargets) {
+                await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
+            }
+        } else {
+            await runner.run('yarn', 'run', 'build:native', '--target', target.id);
+        }
         // This will fetch the Element release from GitHub that matches the version
         // in element-desktop's package.json.
         await runner.run('yarn', 'run', 'fetch', '-d', 'element.io/release');
