@@ -19,16 +19,17 @@ limitations under the License.
 // See https://doc.rust-lang.org/rustc/platform-support.html.
 export type TargetId =
     'aarch64-apple-darwin' |
+    'x86_64-apple-darwin' |
+    'universal-apple-darwin' |
     'i686-pc-windows-msvc' |
     'x86_64-pc-windows-msvc' |
-    'x86_64-apple-darwin' |
     'x86_64-unknown-linux-gnu';
 
 // Values are expected to match those used in `process.platform`.
 type Platform = 'darwin' | 'linux' | 'win32';
 
 // Values are expected to match those used in `process.arch`.
-type Arch = 'arm64' | 'ia32' | 'x64';
+type Arch = 'arm64' | 'ia32' | 'x64' | 'universal';
 
 // Values are expected to match those used by Visual Studio's `vcvarsall.bat`.
 // See https://docs.microsoft.com/cpp/build/building-on-the-command-line?view=msvc-160#vcvarsall-syntax
@@ -45,10 +46,31 @@ export type WindowsTarget = Target & {
     vcVarsArch: VcVarsArch;
 }
 
+export type UniversalTarget = Target & {
+    arch: 'universal',
+    subtargets: Target[],
+}
+
 const aarch64AppleDarwin: Target = {
     id: 'aarch64-apple-darwin',
     platform: 'darwin',
     arch: 'arm64',
+};
+
+const x8664AppleDarwin: Target = {
+    id: 'x86_64-apple-darwin',
+    platform: 'darwin',
+    arch: 'x64',
+};
+
+const universalAppleDarwin: UniversalTarget = {
+    id: 'universal-apple-darwin',
+    platform: 'darwin',
+    arch: 'universal',
+    subtargets: [
+        aarch64AppleDarwin,
+        x8664AppleDarwin,
+    ],
 };
 
 const i686PcWindowsMsvc: WindowsTarget = {
@@ -65,12 +87,6 @@ const x8664PcWindowsMsvc: WindowsTarget = {
     vcVarsArch: 'amd64',
 }
 
-const x8664AppleDarwin: Target = {
-    id: 'x86_64-apple-darwin',
-    platform: 'darwin',
-    arch: 'x64',
-};
-
 const x8664UnknownLinuxGnu: Target = {
     id: 'x86_64-unknown-linux-gnu',
     platform: 'linux',
@@ -79,17 +95,17 @@ const x8664UnknownLinuxGnu: Target = {
 
 export const TARGETS: Record<TargetId, Target> = {
     'aarch64-apple-darwin': aarch64AppleDarwin,
+    'x86_64-apple-darwin': x8664AppleDarwin,
+    'universal-apple-darwin': universalAppleDarwin,
     'i686-pc-windows-msvc': i686PcWindowsMsvc,
     'x86_64-pc-windows-msvc': x8664PcWindowsMsvc,
-    'x86_64-apple-darwin': x8664AppleDarwin,
     'x86_64-unknown-linux-gnu': x8664UnknownLinuxGnu,
 };
 
 // The set of targets we build by default, sorted by increasing complexity so
 // that we fail fast when the native host target fails.
 export const ENABLED_TARGETS: Target[] = [
-    TARGETS['x86_64-apple-darwin'],
-    TARGETS['aarch64-apple-darwin'],
+    TARGETS['universal-apple-darwin'],
     TARGETS['x86_64-unknown-linux-gnu'],
     TARGETS['x86_64-pc-windows-msvc'],
 ];
