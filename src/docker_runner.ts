@@ -33,7 +33,7 @@ export default class DockerRunner implements IRunner {
         env?: NodeJS.ProcessEnv,
     ) {
         if (env) {
-            this.env = Object.assign(process.env, env);
+            this.env = Object.assign({}, process.env, env);
         }
     }
 
