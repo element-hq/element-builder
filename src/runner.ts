@@ -30,7 +30,7 @@ export default class Runner implements IRunner {
         env?: NodeJS.ProcessEnv,
     ) {
         if (env) {
-            this.env = Object.assign(process.env, env);
+            this.env = Object.assign({}, process.env, env);
         }
     }
 
