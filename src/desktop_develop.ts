@@ -175,7 +175,7 @@ export default class DesktopDevelopBuilder {
         } finally {
             this.building = false;
         }
-    }
+    };
 
     private async writeElectronBuilderConfigFile(
         target: Target,

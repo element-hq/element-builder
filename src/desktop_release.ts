@@ -141,7 +141,7 @@ export default class DesktopReleaseBuilder {
     }
 
     private async copyGnupgDir(repoDir: string) {
-        const dest = path.join(repoDir, 'gnupg')
+        const dest = path.join(repoDir, 'gnupg');
         // We copy rather than symlink so an individual builder can't
         // overwrite the cert used for all the other ones, however
         // a) node doesn't have a recursive copy and b) the gpg
