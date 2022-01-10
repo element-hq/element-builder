@@ -16,7 +16,6 @@ limitations under the License.
 
 import * as childProcess from 'child_process';
 import { promises as fsProm } from 'fs';
-
 import * as rimraf from 'rimraf';
 
 import logger from './logger';
