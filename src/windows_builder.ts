@@ -235,13 +235,13 @@ export default class WindowsBuilder {
     }
 
     public static async setDonglePower(on: boolean): Promise<void> {
-        if (!process.env.UHUBCTL_DONGLE_POWER_LOCATION || !process.env.UHUB_DONGLE_POWER_PORT_NUMBER) return;
+        if (!process.env.UHUBCTL_DONGLE_POWER_LOCATION || !process.env.UHUBCTL_DONGLE_POWER_PORT_NUMBER) return;
 
         return new Promise((resolve, reject) => {
             const proc = childProcess.spawn('uhubctl', [
                 '-l', process.env.UHUBCTL_DONGLE_POWER_LOCATION, // location
                 '-e', // exact location
-                '-p', process.env.UHUB_DONGLE_POWER_PORT_NUMBER, // port number
+                '-p', process.env.UHUBCTL_DONGLE_POWER_PORT_NUMBER, // port number
                 '-a', on ? 'on' : 'off', // action
             ], {
                 stdio: 'ignore',
