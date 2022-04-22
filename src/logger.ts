@@ -25,7 +25,7 @@ export class Logger {
     protected mxAccessToken: string;
     protected mxRoomId: string;
     private context = new MatrixLogContext();
-    private eventIdPromise: Promise<string>;
+    private eventIdPromise = Promise.resolve("");
 
     public setup(matrixServer: string, roomId: string, accessToken: string): void {
         this.baseUrl = matrixServer;
@@ -50,33 +50,13 @@ export class Logger {
     }
 
     public async file(log: string): Promise<void> {
-        const url = await new Promise((resolve) => {
-            const req = https.request(`${this.baseUrl}/_matrix/media/v3/upload`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "text/plain",
-                    'Authorization': 'Bearer ' + this.mxAccessToken,
-                },
-            }, (res) => {
-                const chunks: Uint8Array[] = [];
-                req.on("data", chunk => {
-                    chunks.push(chunk);
-                });
-
-                req.on("end", () => {
-                    const response = Buffer.concat(chunks).toString("utf-8");
-                    resolve(JSON.parse(response).content_uri);
-                });
-            });
-
-            // Set an error handler even though it's ignored to avoid Node exiting
-            // on unhandled errors.
-            req.on('error', e => {
-                // just ignore for now
-            });
-            req.write(new Buffer(log));
-            req.end();
-        });
+        const response = await this.request(
+            `${this.baseUrl}/_matrix/media/v3/upload`,
+            "POST",
+            "text/plain",
+            new Buffer(log),
+        );
+        const url = JSON.parse(response).content_uri;
 
         await this.sendEvent({
             msgtype: "m.file",
@@ -85,7 +65,7 @@ export class Logger {
         });
     }
 
-    protected async getContent(body: string): Promise<object> {
+    protected getContent(body: string): object {
         return {
             msgtype: 'm.notice',
             body,
@@ -93,24 +73,22 @@ export class Logger {
         };
     }
 
-    private sendEvent(content: object): Promise<string> {
-        const url = `${this.baseUrl}/_matrix/client/r0/rooms/${encodeURIComponent(this.mxRoomId)}/send/m.room.message`;
-        return this.eventIdPromise = new Promise((resolve) => {
+    private request(url: string, method: string, type: string, data: any): Promise<string> {
+        return new Promise((resolve, reject) => {
             const req = https.request(url, {
-                method: 'POST',
+                method: method,
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': type,
                     'Authorization': 'Bearer ' + this.mxAccessToken,
                 },
             }, (res) => {
                 const chunks: Uint8Array[] = [];
-                req.on("data", chunk => {
+                res.on("data", chunk => {
                     chunks.push(chunk);
                 });
 
-                req.on("end", () => {
-                    const response = Buffer.concat(chunks).toString("utf-8");
-                    resolve(JSON.parse(response).event_id);
+                res.on("end", () => {
+                    resolve(Buffer.concat(chunks).toString("utf-8"));
                 });
             });
 
@@ -118,10 +96,22 @@ export class Logger {
             // on unhandled errors.
             req.on('error', e => {
                 // just ignore for now
+                reject(e);
             });
-            req.write(JSON.stringify(content));
+            if (data) req.write(data);
             req.end();
         });
+    }
+
+    private sendEvent(content: object): Promise<string> {
+        const url = `${this.baseUrl}/_matrix/client/r0/rooms/${encodeURIComponent(this.mxRoomId)}/send/m.room.message`;
+        // Make all events send sequentially
+        const prom = this.eventIdPromise.then(lastEventId => (
+            this.request(url, "POST", "application/json", JSON.stringify(content))
+                .then(data => JSON.parse(data).event_id, () => lastEventId)
+        ));
+        this.eventIdPromise = prom;
+        return prom;
     }
 
     protected async log(level: Level, ...args: any[]): Promise<string> {
@@ -131,8 +121,7 @@ export class Logger {
 
         // log to matrix in the simplest possible way: If it fails, forget it, and we lose the log message,
         // and we wait while it completes, so if the server is slow, the build goes slower.
-        const evData = await this.getContent(args[0]);
-        return this.sendEvent(evData);
+        return this.sendEvent(this.getContent(args[0]));
     }
 
     private clone(): Logger {
