@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import * as childProcess from 'child_process';
-
 import { IRunner } from './runner';
 import { Logger } from "./logger";
+import { spawn } from "./spawn";
 
 /**
  * Actually this isn't really a Docker runner: all the docker logic is
@@ -40,15 +39,9 @@ export default class DockerRunner implements IRunner {
 
     public run(cmd: string, ...args: string[]): Promise<void> {
         this.logger.info([cmd, ...args].join(' '));
-        return new Promise((resolve, reject) => {
-            const proc = childProcess.spawn(this.wrapper, [cmd].concat(...args), {
-                stdio: 'inherit',
-                cwd: this.cwd,
-                env: this.env,
-            });
-            proc.on('exit', (code) => {
-                code ? reject(code) : resolve();
-            });
+        return spawn(this.wrapper, [cmd].concat(...args), {
+            cwd: this.cwd,
+            env: this.env,
         });
     }
 }

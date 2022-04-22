@@ -19,6 +19,7 @@ import { promises as fsProm } from 'fs';
 import * as path from 'path';
 
 import logger from './logger';
+import { spawn } from "./spawn";
 
 async function getRepoTargets(repoDir: string): Promise<string[]> {
     const confDistributions = await fsProm.readFile(path.join(repoDir, 'conf', 'distributions'), 'utf8');
@@ -45,16 +46,10 @@ export async function addDeb(debDir: string, deb: string): Promise<void> {
     const targets = await getRepoTargets(debDir);
     logger.info("Adding " + deb + " for " + targets.join(', ') + "...");
     for (const target of targets) {
-        await new Promise<void>((resolve, reject) => {
-            const proc = childProcess.spawn('reprepro', [
-                'includedeb', target, deb,
-            ], {
-                stdio: 'inherit',
-                cwd: debDir,
-            });
-            proc.on('exit', code => {
-                code ? reject(code) : resolve();
-            });
+        await spawn('reprepro', [
+            'includedeb', target, deb,
+        ], {
+            cwd: debDir,
         });
     }
 }

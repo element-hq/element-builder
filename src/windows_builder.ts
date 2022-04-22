@@ -20,6 +20,7 @@ import * as childProcess from 'child_process';
 
 import { WindowsTarget } from './target';
 import { Logger } from "./logger";
+import { spawn } from "./spawn";
 
 const STARTVM_TIMEOUT = 90 * 1000;
 const POWEROFF_TIMEOUT = 20 * 1000;
@@ -229,13 +230,6 @@ export default class WindowsBuilder {
     }
 
     private async vboxManage(cmd: string, ...args: string[]): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const proc = childProcess.spawn('VBoxManage', [cmd].concat(args), {
-                stdio: 'inherit',
-            });
-            proc.on('exit', (code) => {
-                code ? reject(code) : resolve();
-            });
-        });
+        return spawn('VBoxManage', [cmd].concat(args));
     }
 }

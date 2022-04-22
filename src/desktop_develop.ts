@@ -19,7 +19,7 @@ import * as path from 'path';
 
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
-import rootLogger, { Logger } from './logger';
+import rootLogger, { LoggableError, Logger } from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
@@ -159,6 +159,11 @@ export default class DesktopDevelopBuilder {
                 } catch (e) {
                     logger.error("Build failed!", e);
                     this.lastFailTimes[target.id] = Date.now();
+
+                    if (e instanceof LoggableError) {
+                        logger.file(e.log);
+                    }
+
                     // if one fails, bail out of the whole process: probably better
                     // to have all platforms not updating than just one
                     return;
@@ -419,6 +424,10 @@ export default class DesktopDevelopBuilder {
 
             // prune update packages (installers are overwritten each time)
             await pruneBuilds(path.join(this.appPubDir, 'update', 'win32', archDir), /\.nupkg$/, logger);
+        } catch (e) {
+            if (e instanceof LoggableError) {
+                logger.file(e.log);
+            }
         } finally {
             await builder.stop();
         }

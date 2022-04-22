@@ -49,6 +49,42 @@ export class Logger {
         this.log('debug', ...args);
     }
 
+    public async file(log: string): Promise<void> {
+        const url = await new Promise((resolve) => {
+            const req = https.request(`${this.baseUrl}/_matrix/media/v3/upload`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "text/plain",
+                    'Authorization': 'Bearer ' + this.mxAccessToken,
+                },
+            }, (res) => {
+                const chunks: Uint8Array[] = [];
+                req.on("data", chunk => {
+                    chunks.push(chunk);
+                });
+
+                req.on("end", () => {
+                    const response = Buffer.concat(chunks).toString("utf-8");
+                    resolve(JSON.parse(response).content_uri);
+                });
+            });
+
+            // Set an error handler even though it's ignored to avoid Node exiting
+            // on unhandled errors.
+            req.on('error', e => {
+                // just ignore for now
+            });
+            req.write(new Buffer(log));
+            req.end();
+        });
+
+        await this.sendEvent({
+            msgtype: "m.file",
+            body: "Log file",
+            url,
+        });
+    }
+
     protected async getContent(body: string): Promise<object> {
         return {
             msgtype: 'm.notice',
@@ -57,15 +93,7 @@ export class Logger {
         };
     }
 
-    protected async log(level: Level, ...args: any[]): Promise<string> {
-        console[level](...args);
-
-        if (this.baseUrl === undefined) return;
-
-        // log to matrix in the simplest possible way: If it fails, forget it, and we lose the log message,
-        // and we wait while it completes, so if the server is slow, the build goes slower.
-        const evData = JSON.stringify(await this.getContent(args[0]));
-
+    private sendEvent(content: object): Promise<string> {
         const url = `${this.baseUrl}/_matrix/client/r0/rooms/${encodeURIComponent(this.mxRoomId)}/send/m.room.message`;
         return this.eventIdPromise = new Promise((resolve) => {
             const req = https.request(url, {
@@ -91,9 +119,20 @@ export class Logger {
             req.on('error', e => {
                 // just ignore for now
             });
-            req.write(evData);
+            req.write(JSON.stringify(content));
             req.end();
         });
+    }
+
+    protected async log(level: Level, ...args: any[]): Promise<string> {
+        console[level](...args);
+
+        if (this.baseUrl === undefined) return;
+
+        // log to matrix in the simplest possible way: If it fails, forget it, and we lose the log message,
+        // and we wait while it completes, so if the server is slow, the build goes slower.
+        const evData = await this.getContent(args[0]);
+        return this.sendEvent(evData);
     }
 
     private clone(): Logger {
@@ -121,52 +160,6 @@ export class Logger {
         const logger = this.clone();
         logger.context = new ReactionLogContext(await this.eventIdPromise);
         return logger;
-    }
-
-    // Grab a new file logger with the same context as this one
-    public fileLogger(): FileLogger {
-        const logger = new FileLogger();
-        logger.setup(this.baseUrl, this.mxRoomId, this.mxAccessToken);
-        logger.context = this.context;
-        return logger;
-    }
-}
-
-class FileLogger extends Logger {
-    protected async getContent(body: string): Promise<object> {
-        const url = await new Promise((resolve) => {
-            const req = https.request(`${this.baseUrl}/_matrix/media/v3/upload`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "text/plain",
-                    'Authorization': 'Bearer ' + this.mxAccessToken,
-                },
-            }, (res) => {
-                const chunks: Uint8Array[] = [];
-                req.on("data", chunk => {
-                    chunks.push(chunk);
-                });
-
-                req.on("end", () => {
-                    const response = Buffer.concat(chunks).toString("utf-8");
-                    resolve(JSON.parse(response).content_uri);
-                });
-            });
-
-            // Set an error handler even though it's ignored to avoid Node exiting
-            // on unhandled errors.
-            req.on('error', e => {
-                // just ignore for now
-            });
-            req.write(new Buffer(body));
-            req.end();
-        });
-
-        return {
-            msgtype: "m.file",
-            body: "Log file",
-            url,
-        };
     }
 }
 
@@ -225,6 +218,12 @@ class ReactionLogContext extends MatrixLogContext {
             "body": undefined,
             "msgtype": undefined,
         };
+    }
+}
+
+export class LoggableError extends Error {
+    constructor(public readonly code: number, public readonly log: string) {
+        super(code.toString());
     }
 }
 

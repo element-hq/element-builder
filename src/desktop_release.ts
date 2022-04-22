@@ -19,7 +19,7 @@ import * as path from 'path';
 
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
-import rootLogger, { Logger } from './logger';
+import rootLogger, { LoggableError, Logger } from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
@@ -98,6 +98,11 @@ export default class DesktopReleaseBuilder {
                     logger.error("Build failed!", e);
                     // if one fails, bail out of the whole process: probably better
                     // to have all platforms not updating than just one
+
+                    if (e instanceof LoggableError) {
+                        logger.file(e.log);
+                    }
+
                     return;
                 }
             }
@@ -108,6 +113,9 @@ export default class DesktopReleaseBuilder {
             reactionLogger.info("Push complete!");
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
+            if (e instanceof LoggableError) {
+                rootLogger.file(e.log);
+            }
         } finally {
             this.building = false;
         }
