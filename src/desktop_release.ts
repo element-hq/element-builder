@@ -26,6 +26,7 @@ import WindowsBuilder from './windows_builder';
 import { ENABLED_TARGETS, Target, UniversalTarget, WindowsTarget } from './target';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
+import logger from "./logger";
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -50,7 +51,7 @@ export default class DesktopReleaseBuilder {
 
     public async start(): Promise<void> {
         rootLogger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
-        const introLogger = await rootLogger.threadLogger();
+        const introLogger = rootLogger.threadLogger();
         this.building = false;
 
         try {
@@ -91,7 +92,7 @@ export default class DesktopReleaseBuilder {
 
             for (const target of toBuild) {
                 rootLogger.info(`Starting build of ${target.id} for ${this.desktopBranch}`);
-                const logger = await rootLogger.threadLogger();
+                const logger = rootLogger.threadLogger();
                 try {
                     await this.build(target, logger);
                 } catch (e) {
@@ -107,9 +108,9 @@ export default class DesktopReleaseBuilder {
                 }
             }
 
-            rootLogger.info(`Built packages for: {toBuild.map(t => t.id).join(', ')} : pushing packages...`);
-            const reactionLogger = await rootLogger.reactionLogger();
-            await pushArtifacts(this.pubDir, this.rsyncRoot);
+            rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
+            const reactionLogger = rootLogger.reactionLogger();
+            await pushArtifacts(this.pubDir, this.rsyncRoot, rootLogger);
             reactionLogger.info("Push complete!");
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
@@ -167,6 +168,7 @@ export default class DesktopReleaseBuilder {
             await copyAndLog(
                 path.join(this.gnupgDir, f),
                 path.join(dest, f),
+                logger,
             );
         }
     }
@@ -226,6 +228,7 @@ export default class DesktopReleaseBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     path.join(this.appPubDir, 'install', 'macos', f),
+                    logger,
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
@@ -242,6 +245,7 @@ export default class DesktopReleaseBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     path.join(this.appPubDir, 'update', 'macos', f),
+                    logger,
                 );
             }
 
@@ -373,6 +377,7 @@ export default class DesktopReleaseBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'install', 'win32', archDir, f),
+                    logger,
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
@@ -384,12 +389,14 @@ export default class DesktopReleaseBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
                 );
             }
         } finally {

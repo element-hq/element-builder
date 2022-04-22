@@ -24,8 +24,8 @@ export class Logger {
     protected baseUrl: string;
     protected mxAccessToken: string;
     protected mxRoomId: string;
-    private context = new MatrixLogContext();
     private eventIdPromise = Promise.resolve("");
+    private context = new MatrixLogContext(this.eventIdPromise);
 
     public setup(matrixServer: string, roomId: string, accessToken: string): void {
         this.baseUrl = matrixServer;
@@ -50,6 +50,7 @@ export class Logger {
     }
 
     public async file(log: string): Promise<void> {
+        return; // XXX for now disable the file logger due to potential for leaks
         const response = await this.request(
             `${this.baseUrl}/_matrix/media/v3/upload`,
             "POST",
@@ -58,20 +59,18 @@ export class Logger {
         );
         const url = JSON.parse(response).content_uri;
 
-        await this.sendEvent({
+        await this.sendEvent(() => this.context.getContent({
             msgtype: "m.file",
             body: "log.txt",
             url,
-            ...this.context.mixin(""),
-        });
+        }));
     }
 
     protected getContent(body: string): object {
-        return {
+        return this.context.getContent({
             msgtype: 'm.notice',
             body,
-            ...this.context.mixin(body),
-        };
+        });
     }
 
     private request(url: string, method: string, type: string, data: any): Promise<string> {
@@ -104,11 +103,11 @@ export class Logger {
         });
     }
 
-    private sendEvent(content: object): Promise<string> {
-        const url = `${this.baseUrl}/_matrix/client/r0/rooms/${encodeURIComponent(this.mxRoomId)}/send/m.room.message`;
+    private sendEvent(fn: () => object, type = "m.room.message"): Promise<string> {
+        const url = `${this.baseUrl}/_matrix/client/r0/rooms/${encodeURIComponent(this.mxRoomId)}/send/${type}`;
         // Make all events send sequentially
         const prom = this.eventIdPromise.then(lastEventId => (
-            this.request(url, "POST", "application/json", JSON.stringify(content))
+            this.request(url, "POST", "application/json", JSON.stringify(fn()))
                 .then(data => JSON.parse(data).event_id, () => lastEventId)
         ));
         this.eventIdPromise = prom;
@@ -122,50 +121,62 @@ export class Logger {
 
         // log to matrix in the simplest possible way: If it fails, forget it, and we lose the log message,
         // and we wait while it completes, so if the server is slow, the build goes slower.
-        return this.sendEvent(this.getContent(args[0]));
+        return this.sendEvent(() => this.getContent(args[0]), this.context.type);
     }
 
-    private clone(): Logger {
+    private clone(context = this.context): Logger {
         const logger = new Logger();
+        logger.context = context;
+        logger.eventIdPromise = logger.context.ready().then(() => "");
         logger.setup(this.baseUrl, this.mxRoomId, this.mxAccessToken);
         return logger;
     }
 
     // Grab a new logger with a context to a thread around the latest event which was sent
-    public async threadLogger(): Promise<Logger> {
-        const logger = this.clone();
-        logger.context = new ThreadLogContext(await this.eventIdPromise);
-        return logger;
+    public threadLogger(): Logger {
+        return this.clone(new ThreadLogContext(this.eventIdPromise));
     }
 
     // Grab a new logger with a context to editing the latest event which was sent
-    public async editLogger(): Promise<Logger> {
-        const logger = this.clone();
-        logger.context = new EditLogContext(await this.eventIdPromise);
-        return logger;
+    public editLogger(): Logger {
+        return this.clone(new EditLogContext(this.eventIdPromise));
     }
 
     // Grab a new logger with a context to reacting to the latest event which was sent
-    public async reactionLogger(): Promise<Logger> {
-        const logger = this.clone();
-        logger.context = new ReactionLogContext(await this.eventIdPromise);
-        return logger;
+    public reactionLogger(): Logger {
+        return this.clone(new ReactionLogContext(this.eventIdPromise));
     }
 }
 
 class MatrixLogContext {
-    public mixin(body: string): object {
-        return {};
+    constructor(private readonly prom: Promise<unknown>) {}
+
+    public getContent(content: object): object {
+        return content;
+    }
+
+    public get type(): string {
+        return "m.room.message";
+    }
+
+    public ready(): Promise<unknown> {
+        return this.prom;
     }
 }
 
 class ThreadLogContext extends MatrixLogContext {
-    constructor(private readonly threadId: string) {
-        super();
+    private threadId: string;
+
+    constructor(private readonly threadIdPromise: Promise<string>) {
+        super(threadIdPromise);
+        threadIdPromise.then(threadId => {
+            this.threadId = threadId;
+        });
     }
 
-    public mixin(): object {
+    public getContent(content: object): object {
         return {
+            ...content,
             "m.relates_to": {
                 event_id: this.threadId,
                 rel_type: "m.thread",
@@ -175,39 +186,51 @@ class ThreadLogContext extends MatrixLogContext {
 }
 
 class EditLogContext extends MatrixLogContext {
-    constructor(private readonly eventId: string) {
-        super();
+    private eventId: string;
+
+    constructor(private readonly eventIdPromise: Promise<string>) {
+        super(eventIdPromise);
+        eventIdPromise.then(threadId => {
+            this.eventId = threadId;
+        });
     }
 
-    public mixin(body: string): object {
+    public getContent(content: object): object {
         return {
+            ...content,
             "m.relates_to": {
                 event_id: this.eventId,
                 rel_type: "m.replace",
             },
             "m.new_content": {
-                body,
+                body: content["body"],
             },
         };
     }
 }
 
 class ReactionLogContext extends MatrixLogContext {
-    constructor(private readonly eventId: string) {
-        super();
+    private eventId: string;
+
+    constructor(private readonly eventIdPromise: Promise<string>) {
+        super(eventIdPromise);
+        eventIdPromise.then(threadId => {
+            this.eventId = threadId;
+        });
     }
 
-    public mixin(body: string): object {
+    public getContent(content: object): object {
         return {
             "m.relates_to": {
                 event_id: this.eventId,
                 rel_type: "m.annotation",
-                key: body,
+                key: content["body"],
             },
-            // clobber body & msgtype
-            "body": undefined,
-            "msgtype": undefined,
         };
+    }
+
+    public get type(): string {
+        return "m.reaction";
     }
 }
 

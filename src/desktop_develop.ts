@@ -107,7 +107,7 @@ export default class DesktopDevelopBuilder {
 
     public async start(): Promise<void> {
         rootLogger.info("Starting Element Desktop nightly builder...");
-        const logger = await rootLogger.threadLogger();
+        const logger = rootLogger.threadLogger();
         this.building = false;
 
         await WindowsBuilder.setDonglePower(false);
@@ -152,7 +152,7 @@ export default class DesktopDevelopBuilder {
 
             for (const target of toBuild) {
                 rootLogger.info("Starting build of " + target.id);
-                const logger = await rootLogger.threadLogger();
+                const logger = rootLogger.threadLogger();
                 try {
                     const thisBuildVersion = getBuildVersion();
                     await this.build(target, thisBuildVersion, logger);
@@ -172,9 +172,9 @@ export default class DesktopDevelopBuilder {
                 }
             }
 
-            rootLogger.info(`Built packages for: {toBuild.map(t => t.id).join(', ')} : pushing packages...`);
-            const reactionLogger = await rootLogger.reactionLogger();
-            await pushArtifacts(this.pubDir, this.rsyncRoot);
+            rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
+            const reactionLogger = rootLogger.reactionLogger();
+            await pushArtifacts(this.pubDir, this.rsyncRoot, rootLogger);
             reactionLogger.info("Push complete!");
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
@@ -282,12 +282,14 @@ export default class DesktopDevelopBuilder {
                     // be consistent with windows and don't bother putting the version number
                     // in the installer
                     path.join(this.appPubDir, 'install', 'macos', 'Element Nightly.dmg'),
+                    logger,
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     path.join(this.appPubDir, 'update', 'macos', f),
+                    logger,
                 );
             }
 
@@ -410,18 +412,21 @@ export default class DesktopDevelopBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Nightly Setup.exe'),
+                    logger,
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
                 );
             }
 
