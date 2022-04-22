@@ -18,8 +18,8 @@ import * as path from 'path';
 import { promises as fsProm } from 'fs';
 import * as childProcess from 'child_process';
 
-import logger from './logger';
 import { WindowsTarget } from './target';
+import { Logger } from "./logger";
 
 const STARTVM_TIMEOUT = 90 * 1000;
 const POWEROFF_TIMEOUT = 20 * 1000;
@@ -38,15 +38,16 @@ const VCVARSALL = (
  */
 export default class WindowsBuilder {
     private script = "";
-    private env: NodeJS.ProcessEnv;
+    private readonly env: NodeJS.ProcessEnv;
 
     constructor(
-        private cwd: string,
-        private target: WindowsTarget,
-        private vmName: string,
-        private username: string,
-        private password: string,
-        private keyContainer: string,
+        private readonly cwd: string,
+        private readonly target: WindowsTarget,
+        private readonly vmName: string,
+        private readonly username: string,
+        private readonly password: string,
+        private readonly keyContainer: string,
+        private readonly logger: Logger,
         env?: NodeJS.ProcessEnv,
     ) {
         if (env) {
@@ -72,7 +73,7 @@ export default class WindowsBuilder {
         await this.vboxManage('snapshot', this.vmName, 'restorecurrent');
         console.log("Snapshot restored.");
 
-        logger.info("Starting VM: " + this.vmName);
+        this.logger.info("Starting VM: " + this.vmName);
         await this.vboxManage('startvm', this.vmName);
         await new Promise(resolve => setTimeout(resolve, 5000));
         const waitUntil = Date.now() + STARTVM_TIMEOUT;
@@ -117,20 +118,20 @@ export default class WindowsBuilder {
                 await this.run('net use z: \\\\vboxsvr\\builddir /y');
                 await new Promise(resolve => setTimeout(resolve, 4000));
                 await this.run('z:');
-                logger.info("Mapped network drive in " + attempts + " attempts");
+                this.logger.info("Mapped network drive in " + attempts + " attempts");
                 return;
             } catch (e) {
-                logger.info("Failed to map network drive");
+                this.logger.info("Failed to map network drive");
                 await new Promise(resolve => setTimeout(resolve, 4000));
             }
         }
 
-        logger.error("Giving up trying to map network drive");
+        this.logger.error("Giving up trying to map network drive");
         throw new Error("Unable to map network drive");
     }
 
     public async stop(): Promise<void> {
-        logger.info("Shutting down VM...");
+        this.logger.info("Shutting down VM...");
         this.vboxManage('controlvm', this.vmName, 'acpipowerbutton');
         const waitUntil = Date.now() + POWEROFF_TIMEOUT;
 
@@ -141,12 +142,12 @@ export default class WindowsBuilder {
         }
 
         if (isRunning) {
-            logger.info("VM still hasn't shut down: pulling the plug");
+            this.logger.info("VM still hasn't shut down: pulling the plug");
             try {
                 await this.vboxManage('controlvm', this.vmName, 'poweroff');
             } catch (e) {}
         } else {
-            logger.info("VM shut down cleanly");
+            this.logger.info("VM shut down cleanly");
         }
     }
 
@@ -182,9 +183,11 @@ export default class WindowsBuilder {
         await fsProm.writeFile(tmpCmdFile, fileContents);
 
         const startTime = Date.now();
+        this.logger.info("Windows build starting!");
+        const timeLogger = this.logger.editLogger();
         const timer = setInterval(() => {
             const runningForMins = Math.round((Date.now() - startTime) / (60 * 1000));
-            logger.info("Windows build running for " + runningForMins + " mins");
+            timeLogger.info("Windows build running for " + runningForMins + " mins");
         }, 60 * 1000);
 
         try {

@@ -16,17 +16,18 @@ limitations under the License.
 
 import * as childProcess from 'child_process';
 
-import logger from './logger';
+import { Logger } from "./logger";
 
 export interface IRunner {
     run(cmd: string, ...args: string[]): Promise<void>;
 }
 
 export default class Runner implements IRunner {
-    private env: NodeJS.ProcessEnv;
+    private readonly env: NodeJS.ProcessEnv;
 
     constructor(
-        private cwd: string,
+        private readonly cwd: string,
+        private readonly logger: Logger,
         env?: NodeJS.ProcessEnv,
     ) {
         if (env) {
@@ -34,8 +35,8 @@ export default class Runner implements IRunner {
         }
     }
 
-    run(cmd: string, ...args: string[]): Promise<void> {
-        logger.info([cmd, ...args].join(' '));
+    public run(cmd: string, ...args: string[]): Promise<void> {
+        this.logger.info([cmd, ...args].join(' '));
         return new Promise((resolve, reject) => {
             const proc = childProcess.spawn(cmd, args, {
                 stdio: 'inherit',
