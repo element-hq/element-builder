@@ -31,12 +31,14 @@ export async function spawn(
 
         let log = "";
         proc.stdout.on('data', (data) => {
-            console.log(data);
-            log += data.toString();
+            const str = data.toString();
+            console.log(str);
+            log += str;
         });
         proc.stderr.on('data', (data) => {
-            console.error(data);
-            log += data.toString();
+            const str = data.toString();
+            console.error(str);
+            log += str;
         });
 
         proc.on('exit', (code) => {

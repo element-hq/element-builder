@@ -60,7 +60,7 @@ export class Logger {
 
         await this.sendEvent({
             msgtype: "m.file",
-            body: "Log file",
+            body: "log.txt",
             url,
         });
     }
