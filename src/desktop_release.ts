@@ -92,11 +92,14 @@ export default class DesktopReleaseBuilder {
 
             for (const target of toBuild) {
                 rootLogger.info(`Starting build of ${target.id} for ${this.desktopBranch}`);
+                const jobReactionLogger = rootLogger.reactionLogger();
                 const logger = rootLogger.threadLogger();
                 try {
                     await this.build(target, logger);
+                    jobReactionLogger.info("✅ Done!");
                 } catch (e) {
                     logger.error("Build failed!", e);
+                    jobReactionLogger.info("🚨 Failed!");
                     // if one fails, bail out of the whole process: probably better
                     // to have all platforms not updating than just one
 

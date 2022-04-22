@@ -152,14 +152,17 @@ export default class DesktopDevelopBuilder {
 
             for (const target of toBuild) {
                 rootLogger.info("Starting build of " + target.id);
+                const jobReactionLogger = rootLogger.reactionLogger();
                 const logger = rootLogger.threadLogger();
                 try {
                     const thisBuildVersion = getBuildVersion();
                     await this.build(target, thisBuildVersion, logger);
                     this.lastBuildTimes[target.id] = Date.now();
                     await putLastBuildTime(target, this.lastBuildTimes[target.id], logger);
+                    jobReactionLogger.info("✅ Done!");
                 } catch (e) {
                     logger.error("Build failed!", e);
+                    jobReactionLogger.info("🚨 Failed!");
                     this.lastFailTimes[target.id] = Date.now();
 
                     if (e instanceof LoggableError) {
