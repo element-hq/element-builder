@@ -197,6 +197,7 @@ export default class DesktopReleaseBuilder {
                 buildVersion,
                 path.join(repoDir, 'element.io', 'release', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
+                logger,
             );
         }
 
@@ -249,7 +250,7 @@ export default class DesktopReleaseBuilder {
             await fsProm.writeFile(latestPath, buildVersion);
         } else if (target.platform === 'linux') {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
-                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
+                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f), logger);
             }
         }
 

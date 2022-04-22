@@ -253,6 +253,7 @@ export default class DesktopDevelopBuilder {
                 buildVersion,
                 path.join(repoDir, 'element.io', 'nightly', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
+                logger,
             );
         }
 
@@ -298,7 +299,7 @@ export default class DesktopDevelopBuilder {
             await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/, logger);
         } else if (target.platform === 'linux') {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
-                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
+                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f), logger);
             }
         }
 

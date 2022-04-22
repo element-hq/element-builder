@@ -62,6 +62,7 @@ export class Logger {
             msgtype: "m.file",
             body: "log.txt",
             url,
+            ...this.context.mixin(""),
         });
     }
 
