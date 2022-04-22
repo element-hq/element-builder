@@ -25,15 +25,17 @@ export async function spawn(
 ): Promise<void> {
     return new Promise((resolve, reject) => {
         const proc = childProcess.spawn(command, args, {
-            stdio: 'inherit',
             ...options,
+            stdio: ["ignore", "pipe", "pipe"],
         });
 
         let log = "";
         proc.stdout.on('data', (data) => {
+            console.log(data);
             log += data.toString();
         });
         proc.stderr.on('data', (data) => {
+            console.error(data);
             log += data.toString();
         });
 
