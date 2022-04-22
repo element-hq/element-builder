@@ -39,26 +39,21 @@ const VCVARSALL = (
  */
 export default class WindowsBuilder {
     private script = "";
-    private readonly env: NodeJS.ProcessEnv;
 
     constructor(
-        private readonly cwd: string,
-        private readonly target: WindowsTarget,
-        private readonly vmName: string,
-        private readonly username: string,
-        private readonly password: string,
-        private readonly keyContainer: string,
+        private cwd: string,
+        private target: WindowsTarget,
+        private vmName: string,
+        private username: string,
+        private password: string,
+        private keyContainer: string,
         private readonly logger: Logger,
-        env?: NodeJS.ProcessEnv,
-    ) {
-        if (env) {
-            this.env = env;
-        } else {
-            this.env = {};
-        }
-    }
+        private readonly env: NodeJS.ProcessEnv = {},
+    ) {}
 
     public async start(): Promise<void> {
+        await WindowsBuilder.setDonglePower(false);
+
         const isRunning = await this.isRunning();
         if (isRunning) {
             console.log("VM currently running: stopping");
@@ -88,6 +83,7 @@ export default class WindowsBuilder {
             throw new Error("Failed to start VM: " + this.vmName);
         }
         await this.mapBuildDir();
+        await WindowsBuilder.setDonglePower(true);
     }
 
     private async pingVm(): Promise<boolean> {
@@ -132,6 +128,8 @@ export default class WindowsBuilder {
     }
 
     public async stop(): Promise<void> {
+        await WindowsBuilder.setDonglePower(false);
+
         this.logger.info("Shutting down VM...");
         this.vboxManage('controlvm', this.vmName, 'acpipowerbutton');
         const waitUntil = Date.now() + POWEROFF_TIMEOUT;
@@ -231,5 +229,23 @@ export default class WindowsBuilder {
 
     private async vboxManage(cmd: string, ...args: string[]): Promise<void> {
         return spawn('VBoxManage', [cmd].concat(args));
+    }
+
+    public static async setDonglePower(on: boolean): Promise<void> {
+        if (!process.env.UHUBCTL_DONGLE_POWER_LOCATION || !process.env.UHUBCTL_DONGLE_POWER_PORT_NUMBER) return;
+
+        return new Promise((resolve, reject) => {
+            const proc = childProcess.spawn('uhubctl', [
+                '-l', process.env.UHUBCTL_DONGLE_POWER_LOCATION, // location
+                '-e', // exact location
+                '-p', process.env.UHUBCTL_DONGLE_POWER_PORT_NUMBER, // port number
+                '-a', on ? 'on' : 'off', // action
+            ], {
+                stdio: 'ignore',
+            });
+            proc.on('exit', (code) => {
+                code ? reject(code) : resolve();
+            });
+        });
     }
 }
