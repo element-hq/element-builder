@@ -26,19 +26,18 @@ export async function spawn(
     return new Promise((resolve, reject) => {
         const proc = childProcess.spawn(command, args, {
             ...options,
-            stdio: ["ignore", "pipe", "pipe"],
+            stdio: ["inherit", "pipe", "pipe"],
         });
 
+        proc.stdout.pipe(process.stdout);
+        proc.stderr.pipe(process.stderr);
+
         let log = "";
-        proc.stdout.on('data', (data) => {
-            const str = data.toString();
-            console.log(str);
-            log += str;
+        proc.stdout.on('data', (chunk) => {
+            log += chunk.toString();
         });
-        proc.stderr.on('data', (data) => {
-            const str = data.toString();
-            console.error(str);
-            log += str;
+        proc.stderr.on('data', (chunk) => {
+            log += chunk.toString();
         });
 
         proc.on('exit', (code) => {
