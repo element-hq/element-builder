@@ -184,7 +184,7 @@ export default class WindowsBuilder {
 
         const startTime = Date.now();
         this.logger.info("Windows build starting!");
-        const timeLogger = this.logger.editLogger();
+        const timeLogger = await this.logger.editLogger();
         const timer = setInterval(() => {
             const runningForMins = Math.round((Date.now() - startTime) / (60 * 1000));
             timeLogger.info("Windows build running for " + runningForMins + " mins");

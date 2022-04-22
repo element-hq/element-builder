@@ -106,8 +106,8 @@ export default class DesktopDevelopBuilder {
     ) { }
 
     public async start(): Promise<void> {
-        const logger = rootLogger.threadLogger();
-        logger.info("Starting Element Desktop nightly builder...");
+        rootLogger.info("Starting Element Desktop nightly builder...");
+        const logger = await rootLogger.threadLogger();
         this.building = false;
 
         // get the token passphrase now so a) we fail early if it's not in the keychain
@@ -126,7 +126,7 @@ export default class DesktopDevelopBuilder {
         }
 
         setInterval(this.poll, 30 * 1000);
-        this.poll();
+        await this.poll();
     }
 
     private poll = async (): Promise<void> => {
@@ -149,9 +149,9 @@ export default class DesktopDevelopBuilder {
             this.building = true;
 
             for (const target of toBuild) {
-                const logger = rootLogger.threadLogger();
+                rootLogger.info("Starting build of " + target.id);
+                const logger = await rootLogger.threadLogger();
                 try {
-                    logger.info("Starting build of " + target.id);
                     const thisBuildVersion = getBuildVersion();
                     await this.build(target, thisBuildVersion, logger);
                     this.lastBuildTimes[target.id] = Date.now();
@@ -165,8 +165,8 @@ export default class DesktopDevelopBuilder {
                 }
             }
 
-            const reactionLogger = rootLogger.reactionLogger();
-            reactionLogger.info(`Built packages for: {toBuild.map(t => t.id).join(', ')} : pushing packages...`);
+            rootLogger.info(`Built packages for: {toBuild.map(t => t.id).join(', ')} : pushing packages...`);
+            const reactionLogger = await rootLogger.reactionLogger();
             await pushArtifacts(this.pubDir, this.rsyncRoot);
             reactionLogger.info("Push complete!");
         } catch (e) {

@@ -49,8 +49,8 @@ export default class DesktopReleaseBuilder {
     ) { }
 
     public async start(): Promise<void> {
-        const introLogger = rootLogger.threadLogger();
-        introLogger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
+        rootLogger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
+        const introLogger = await rootLogger.threadLogger();
         this.building = false;
 
         try {
@@ -90,9 +90,9 @@ export default class DesktopReleaseBuilder {
             this.building = true;
 
             for (const target of toBuild) {
-                const logger = rootLogger.threadLogger();
+                rootLogger.info(`Starting build of ${target.id} for ${this.desktopBranch}`);
+                const logger = await rootLogger.threadLogger();
                 try {
-                    logger.info(`Starting build of ${target.id} for ${this.desktopBranch}`);
                     await this.build(target, logger);
                 } catch (e) {
                     logger.error("Build failed!", e);
@@ -102,8 +102,8 @@ export default class DesktopReleaseBuilder {
                 }
             }
 
-            const reactionLogger = rootLogger.reactionLogger();
-            reactionLogger.info(`Built packages for: {toBuild.map(t => t.id).join(', ')} : pushing packages...`);
+            rootLogger.info(`Built packages for: {toBuild.map(t => t.id).join(', ')} : pushing packages...`);
+            const reactionLogger = await rootLogger.reactionLogger();
             await pushArtifacts(this.pubDir, this.rsyncRoot);
             reactionLogger.info("Push complete!");
         } catch (e) {

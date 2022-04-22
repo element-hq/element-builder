@@ -21,9 +21,11 @@ import * as https from 'https';
 type Level = 'error' | 'warn' | 'info' | 'debug';
 
 export class Logger {
-    private baseUrl: string;
-    private mxAccessToken: string;
-    private mxRoomId: string;
+    protected baseUrl: string;
+    protected mxAccessToken: string;
+    protected mxRoomId: string;
+    private context = new MatrixLogContext();
+    private eventIdPromise: Promise<string>;
 
     public setup(matrixServer: string, roomId: string, accessToken: string): void {
         this.baseUrl = matrixServer;
@@ -47,10 +49,11 @@ export class Logger {
         this.log('debug', ...args);
     }
 
-    protected getContent(body: string): object {
+    protected async getContent(body: string): Promise<object> {
         return {
             msgtype: 'm.notice',
             body,
+            ...this.context.mixin(body),
         };
     }
 
@@ -61,10 +64,10 @@ export class Logger {
 
         // log to matrix in the simplest possible way: If it fails, forget it, and we lose the log message,
         // and we wait while it completes, so if the server is slow, the build goes slower.
-        const evData = JSON.stringify(this.getContent(args[0]));
+        const evData = JSON.stringify(await this.getContent(args[0]));
 
         const url = `${this.baseUrl}/_matrix/client/r0/rooms/${encodeURIComponent(this.mxRoomId)}/send/m.room.message`;
-        return new Promise((resolve) => {
+        return this.eventIdPromise = new Promise((resolve) => {
             const req = https.request(url, {
                 method: 'POST',
                 headers: {
@@ -93,83 +96,110 @@ export class Logger {
         });
     }
 
-    public threadLogger(): ThreadLogger {
-        const logger = new ThreadLogger();
+    private clone(): Logger {
+        const logger = new Logger();
         logger.setup(this.baseUrl, this.mxRoomId, this.mxAccessToken);
         return logger;
     }
 
-    public editLogger(): EditLogger {
-        const logger = new EditLogger();
-        logger.setup(this.baseUrl, this.mxRoomId, this.mxAccessToken);
+    // Grab a new logger with a context to a thread around the latest event which was sent
+    public async threadLogger(): Promise<Logger> {
+        const logger = this.clone();
+        logger.context = new ThreadLogContext(await this.eventIdPromise);
         return logger;
     }
 
-    public reactionLogger(): ReactionLogger {
-        const logger = new ReactionLogger();
+    // Grab a new logger with a context to editing the latest event which was sent
+    public async editLogger(): Promise<Logger> {
+        const logger = this.clone();
+        logger.context = new EditLogContext(await this.eventIdPromise);
+        return logger;
+    }
+
+    // Grab a new logger with a context to reacting to the latest event which was sent
+    public async reactionLogger(): Promise<Logger> {
+        const logger = this.clone();
+        logger.context = new ReactionLogContext(await this.eventIdPromise);
+        return logger;
+    }
+
+    // Grab a new file logger with the same context as this one
+    public fileLogger(): FileLogger {
+        const logger = new FileLogger();
         logger.setup(this.baseUrl, this.mxRoomId, this.mxAccessToken);
+        logger.context = this.context;
         return logger;
     }
 }
 
-abstract class RelatedLogger extends Logger {
-    protected relatedEventId: string;
+class FileLogger extends Logger {
+    protected async getContent(body: string): Promise<object> {
+        const url = await new Promise((resolve) => {
+            const req = https.request(`${this.baseUrl}/_matrix/media/v3/upload`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "text/plain",
+                    'Authorization': 'Bearer ' + this.mxAccessToken,
+                },
+            }, (res) => {
+                const chunks: Uint8Array[] = [];
+                req.on("data", chunk => {
+                    chunks.push(chunk);
+                });
 
-    protected async log(level: Level, ...args: any[]): Promise<string> {
-        const eventId = await super.log(level, ...args);
-        if (!this.relatedEventId) {
-            this.relatedEventId = eventId;
-        }
-        return eventId;
-    }
+                req.on("end", () => {
+                    const response = Buffer.concat(chunks).toString("utf-8");
+                    resolve(JSON.parse(response).content_uri);
+                });
+            });
 
-    protected abstract getMixin(body: string): object;
-
-    protected getContent(body: string): object {
-        if (!this.relatedEventId) return super.getContent(body);
+            // Set an error handler even though it's ignored to avoid Node exiting
+            // on unhandled errors.
+            req.on('error', e => {
+                // just ignore for now
+            });
+            req.write(new Buffer(body));
+            req.end();
+        });
 
         return {
-            ...super.getContent(body),
-            ...this.getMixin(body),
+            msgtype: "m.file",
+            body: "Log file",
+            url,
         };
     }
+}
 
-    public threadLogger(): ThreadLogger {
-        const logger = super.threadLogger();
-        logger.relatedEventId = this.relatedEventId;
-        return logger;
-    }
-
-    public editLogger(): EditLogger {
-        const logger = super.editLogger();
-        logger.relatedEventId = this.relatedEventId;
-        return logger;
-    }
-
-    public reactionLogger(): ReactionLogger {
-        const logger = super.reactionLogger();
-        logger.relatedEventId = this.relatedEventId;
-        return logger;
+class MatrixLogContext {
+    public mixin(body: string): object {
+        return {};
     }
 }
 
-class ThreadLogger extends RelatedLogger {
-    protected getMixin(): object {
+class ThreadLogContext extends MatrixLogContext {
+    constructor(private readonly threadId: string) {
+        super();
+    }
+
+    public mixin(): object {
         return {
             "m.relates_to": {
-                event_id: this.relatedEventId,
+                event_id: this.threadId,
                 rel_type: "m.thread",
             },
         };
     }
 }
 
-// First log is sent as a notice, the following logs as edits to the original message
-class EditLogger extends RelatedLogger {
-    protected getMixin(body: string): object {
+class EditLogContext extends MatrixLogContext {
+    constructor(private readonly eventId: string) {
+        super();
+    }
+
+    public mixin(body: string): object {
         return {
             "m.relates_to": {
-                event_id: this.relatedEventId,
+                event_id: this.eventId,
                 rel_type: "m.replace",
             },
             "m.new_content": {
@@ -179,22 +209,22 @@ class EditLogger extends RelatedLogger {
     }
 }
 
-// First log is sent as a notice, the following logs as reactions to the original message
-class ReactionLogger extends RelatedLogger {
-    protected getMixin(body: string): object {
+class ReactionLogContext extends MatrixLogContext {
+    constructor(private readonly eventId: string) {
+        super();
+    }
+
+    public mixin(body: string): object {
         return {
             "m.relates_to": {
-                event_id: this.relatedEventId,
+                event_id: this.eventId,
                 rel_type: "m.annotation",
                 key: body,
             },
+            // clobber body & msgtype
+            "body": undefined,
+            "msgtype": undefined,
         };
-    }
-
-    protected getContent(body: string): object {
-        if (!this.relatedEventId) return super.getContent(body);
-
-        return this.getMixin(body);
     }
 }
 
