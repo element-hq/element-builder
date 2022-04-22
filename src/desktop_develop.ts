@@ -109,6 +109,8 @@ export default class DesktopDevelopBuilder {
         logger.info("Starting Element Desktop nightly builder...");
         this.building = false;
 
+        await WindowsBuilder.setDonglePower(false);
+
         // get the token passphrase now so a) we fail early if it's not in the keychain
         // and b) we know the keychain is unlocked because someone's sitting at the
         // computer to start the builder.
