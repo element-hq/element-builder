@@ -178,7 +178,7 @@ export default class DesktopDevelopBuilder {
             rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
             const reactionLogger = rootLogger.reactionLogger();
             await pushArtifacts(this.pubDir, this.rsyncRoot, rootLogger);
-            reactionLogger.info("Push complete!");
+            reactionLogger.info("✅ Done!");
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
             // Mark all types as failed if artifact sync fails
