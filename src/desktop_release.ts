@@ -19,13 +19,14 @@ import * as path from 'path';
 
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
-import logger from './logger';
+import rootLogger, { LoggableError, Logger } from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { ENABLED_TARGETS, Target, UniversalTarget, WindowsTarget } from './target';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
+import logger from "./logger";
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -49,27 +50,28 @@ export default class DesktopReleaseBuilder {
     ) { }
 
     public async start(): Promise<void> {
-        logger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
+        rootLogger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
+        const introLogger = rootLogger.threadLogger();
         this.building = false;
 
         try {
             await fsProm.stat(this.gnupgDir);
         } catch (e) {
-            logger.error("No 'gnupg' directory found");
-            logger.error(
+            introLogger.error("No 'gnupg' directory found");
+            introLogger.error(
                 "This should be a separate gpg home directory that trusts the element release " +
                 "public key (without any private keys) that will be passed into the builders to",
                 "verify the package they download",
             );
-            logger.error("You can create this by running:\n");
-            logger.error(
+            introLogger.error("You can create this by running:\n");
+            introLogger.error(
                 "> mkdir gnupg && curl -s https://packages.riot.im/element-release-key.asc | " +
                 "gpg --homedir gnupg --import",
             );
             return;
         }
 
-        logger.info("Using gnupg homedir " + this.gnupgDir);
+        introLogger.info("Using gnupg homedir " + this.gnupgDir);
 
         // get the token passphrase now so a) we fail early if it's not in the keychain
         // and b) we know the keychain is unlocked because someone's sitting at the
@@ -89,22 +91,35 @@ export default class DesktopReleaseBuilder {
             this.building = true;
 
             for (const target of toBuild) {
+                rootLogger.info(`Starting build of ${target.id} for ${this.desktopBranch}`);
+                const jobReactionLogger = rootLogger.reactionLogger();
+                const logger = rootLogger.threadLogger();
                 try {
-                    logger.info(`Starting build of ${target.id} for ${this.desktopBranch}`);
-                    await this.build(target);
+                    await this.build(target, logger);
+                    jobReactionLogger.info("✅ Done!");
                 } catch (e) {
                     logger.error("Build failed!", e);
+                    jobReactionLogger.info("🚨 Failed!");
                     // if one fails, bail out of the whole process: probably better
                     // to have all platforms not updating than just one
+
+                    if (e instanceof LoggableError) {
+                        logger.file(e.log);
+                    }
+
                     return;
                 }
             }
 
-            logger.info("Built packages for: " + toBuild.map(t => t.id).join(', ') + ": pushing packages...");
-            await pushArtifacts(this.pubDir, this.rsyncRoot);
-            logger.info("...push complete!");
+            rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
+            const reactionLogger = rootLogger.reactionLogger();
+            await pushArtifacts(this.pubDir, this.rsyncRoot, rootLogger);
+            reactionLogger.info("✅ Done!");
         } catch (e) {
-            logger.error("Artifact sync failed!", e);
+            rootLogger.error("Artifact sync failed!", e);
+            if (e instanceof LoggableError) {
+                rootLogger.file(e.log);
+            }
         } finally {
             this.building = false;
         }
@@ -156,19 +171,20 @@ export default class DesktopReleaseBuilder {
             await copyAndLog(
                 path.join(this.gnupgDir, f),
                 path.join(dest, f),
+                logger,
             );
         }
     }
 
-    private async build(target: Target): Promise<void> {
+    private async build(target: Target, logger: Logger): Promise<void> {
         if (target.platform === 'win32') {
-            return this.buildWin(target as WindowsTarget);
+            return this.buildWin(target as WindowsTarget, logger);
         } else {
-            return this.buildLocal(target);
+            return this.buildLocal(target, logger);
         }
     }
 
-    private async buildLocal(target: Target): Promise<void> {
+    private async buildLocal(target: Target, logger: Logger): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
         const repoDir = path.join('builds', 'element-desktop-' + target.id + '-' + this.desktopBranch);
         await rm(repoDir);
@@ -186,6 +202,7 @@ export default class DesktopReleaseBuilder {
                 buildVersion,
                 path.join(repoDir, 'element.io', 'release', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
+                logger,
             );
         }
 
@@ -194,15 +211,16 @@ export default class DesktopReleaseBuilder {
         let runner: IRunner;
         switch (target.platform) {
             case 'darwin':
-                runner = this.makeMacRunner(repoDir);
+                runner = this.makeMacRunner(repoDir, logger);
                 break;
             case 'linux':
-                runner = this.makeLinuxRunner(repoDir);
+                runner = this.makeLinuxRunner(repoDir, logger);
                 break;
             default:
                 throw new Error(`Unexpected local target ${target.id}`);
         }
 
+        await runner.setup();
         await this.buildWithRunner(runner, buildVersion, target);
         logger.info("Build completed!");
 
@@ -214,6 +232,7 @@ export default class DesktopReleaseBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     path.join(this.appPubDir, 'install', 'macos', f),
+                    logger,
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
@@ -230,6 +249,7 @@ export default class DesktopReleaseBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     path.join(this.appPubDir, 'update', 'macos', f),
+                    logger,
                 );
             }
 
@@ -238,7 +258,7 @@ export default class DesktopReleaseBuilder {
             await fsProm.writeFile(latestPath, buildVersion);
         } else if (target.platform === 'linux') {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
-                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
+                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f), logger);
             }
         }
 
@@ -246,14 +266,15 @@ export default class DesktopReleaseBuilder {
         await rm(repoDir);
     }
 
-    private makeMacRunner(cwd: string): IRunner {
-        return new Runner(cwd, {
+    private makeMacRunner(cwd: string, logger: Logger): IRunner {
+        return new Runner(cwd, logger, {
             GNUPGHOME: 'gnupg',
         });
     }
 
-    private makeLinuxRunner(cwd: string): IRunner {
-        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'), {
+    private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
+        const wrapper = path.join('scripts', 'in-docker.sh');
+        return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-release", logger, {
             INDOCKER_GNUPGHOME: 'gnupg',
         });
     }
@@ -287,7 +308,7 @@ export default class DesktopReleaseBuilder {
         await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
-    private async buildWin(target: WindowsTarget): Promise<void> {
+    private async buildWin(target: WindowsTarget, logger: Logger): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
         // Windows long paths (see desktop_develop.ts)
         //const buildDirName = 'element-desktop-' + target.id + '-' + this.desktopBranch;
@@ -311,7 +332,13 @@ export default class DesktopReleaseBuilder {
         await this.copyGnupgDir(repoDir);
 
         const builder = new WindowsBuilder(
-            repoDir, target, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
+            repoDir,
+            target,
+            this.winVmName,
+            this.winUsername,
+            this.winPassword,
+            this.riotSigningKeyContainer,
+            logger,
             {
                 GNUPGHOME: 'gnupg',
             },
@@ -355,6 +382,7 @@ export default class DesktopReleaseBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'install', 'win32', archDir, f),
+                    logger,
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
@@ -366,12 +394,14 @@ export default class DesktopReleaseBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
                 );
             }
         } finally {
