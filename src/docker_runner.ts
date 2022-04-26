@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import * as childProcess from 'child_process';
-
-import logger from './logger';
 import { IRunner } from './runner';
+import { Logger } from "./logger";
+import { spawn } from "./spawn";
 
 /**
  * Actually this isn't really a Docker runner: all the docker logic is
@@ -25,11 +24,12 @@ import { IRunner } from './runner';
  * probably least confusing to name it after the thing we use it for.
  */
 export default class DockerRunner implements IRunner {
-    private env: NodeJS.ProcessEnv;
+    private readonly env: NodeJS.ProcessEnv;
 
     constructor(
-        private cwd: string,
-        private wrapper: string,
+        private readonly cwd: string,
+        private readonly wrapper: string,
+        private readonly logger: Logger,
         env?: NodeJS.ProcessEnv,
     ) {
         if (env) {
@@ -37,17 +37,11 @@ export default class DockerRunner implements IRunner {
         }
     }
 
-    run(cmd: string, ...args: string[]): Promise<void> {
-        logger.info([cmd, ...args].join(' '));
-        return new Promise((resolve, reject) => {
-            const proc = childProcess.spawn(this.wrapper, [cmd].concat(...args), {
-                stdio: 'inherit',
-                cwd: this.cwd,
-                env: this.env,
-            });
-            proc.on('exit', (code) => {
-                code ? reject(code) : resolve();
-            });
+    public run(cmd: string, ...args: string[]): Promise<void> {
+        this.logger.info([cmd, ...args].join(' '));
+        return spawn(this.wrapper, [cmd].concat(...args), {
+            cwd: this.cwd,
+            env: this.env,
         });
     }
 }

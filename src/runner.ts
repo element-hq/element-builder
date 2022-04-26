@@ -14,19 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import * as childProcess from 'child_process';
-
-import logger from './logger';
+import { Logger } from "./logger";
+import { spawn } from "./spawn";
 
 export interface IRunner {
     run(cmd: string, ...args: string[]): Promise<void>;
 }
 
 export default class Runner implements IRunner {
-    private env: NodeJS.ProcessEnv;
+    private readonly env: NodeJS.ProcessEnv;
 
     constructor(
-        private cwd: string,
+        private readonly cwd: string,
+        private readonly logger: Logger,
         env?: NodeJS.ProcessEnv,
     ) {
         if (env) {
@@ -34,17 +34,11 @@ export default class Runner implements IRunner {
         }
     }
 
-    run(cmd: string, ...args: string[]): Promise<void> {
-        logger.info([cmd, ...args].join(' '));
-        return new Promise((resolve, reject) => {
-            const proc = childProcess.spawn(cmd, args, {
-                stdio: 'inherit',
-                cwd: this.cwd,
-                env: this.env,
-            });
-            proc.on('exit', (code) => {
-                code ? reject(code) : resolve();
-            });
+    public run(cmd: string, ...args: string[]): Promise<void> {
+        this.logger.info([cmd, ...args].join(' '));
+        return spawn(cmd, args, {
+            cwd: this.cwd,
+            env: this.env,
         });
     }
 }

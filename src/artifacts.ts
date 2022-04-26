@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import * as childProcess from 'child_process';
 import { promises as fsProm } from 'fs';
 import * as rimraf from 'rimraf';
 
-import logger from './logger';
+import { Logger } from './logger';
+import { spawn } from "./spawn";
 
 export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<string[]> {
     const ret = [];
@@ -33,21 +33,14 @@ export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<s
     return ret;
 }
 
-export function pushArtifacts(pubDir: string, rsyncRoot: string): Promise<void> {
+export function pushArtifacts(pubDir: string, rsyncRoot: string, logger: Logger): Promise<void> {
     logger.info("Uploading artifacts...");
-    return new Promise((resolve, reject) => {
-        const proc = childProcess.spawn('rsync', [
-            '-av', '--delete', '--delay-updates', pubDir + '/', rsyncRoot + 'packages.riot.im',
-        ], {
-            stdio: 'inherit',
-        });
-        proc.on('exit', code => {
-            code ? reject(code) : resolve();
-        });
-    });
+    return spawn('rsync', [
+        '-av', '--delete', '--delay-updates', pubDir + '/', rsyncRoot + 'packages.riot.im',
+    ]);
 }
 
-export function copyAndLog(src: string, dest: string): Promise<void> {
+export function copyAndLog(src: string, dest: string, logger: Logger): Promise<void> {
     logger.info('Copy ' + src + ' -> ' + dest);
     return fsProm.copyFile(src, dest);
 }
