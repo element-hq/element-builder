@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import * as childProcess from 'child_process';
-
-import logger from './logger';
 import { IRunner } from './runner';
+import { Logger } from "./logger";
+import { spawn } from "./spawn";
 
 /**
  * Actually this isn't really a Docker runner: all the docker logic is
@@ -25,29 +24,40 @@ import { IRunner } from './runner';
  * probably least confusing to name it after the thing we use it for.
  */
 export default class DockerRunner implements IRunner {
-    private env: NodeJS.ProcessEnv;
+    private readonly env: NodeJS.ProcessEnv;
 
     constructor(
-        private cwd: string,
-        private wrapper: string,
+        private readonly cwd: string,
+        private readonly wrapper: string,
+        private readonly imageName: string,
+        private readonly logger: Logger,
         env?: NodeJS.ProcessEnv,
     ) {
         if (env) {
-            this.env = Object.assign({}, process.env, env);
+            this.env = Object.assign({
+                DOCKER_IMAGE_NAME: imageName,
+            }, process.env, env);
         }
     }
 
-    run(cmd: string, ...args: string[]): Promise<void> {
-        logger.info([cmd, ...args].join(' '));
-        return new Promise((resolve, reject) => {
-            const proc = childProcess.spawn(this.wrapper, [cmd].concat(...args), {
-                stdio: 'inherit',
-                cwd: this.cwd,
-                env: this.env,
-            });
-            proc.on('exit', (code) => {
-                code ? reject(code) : resolve();
-            });
+    public async setup(): Promise<void> {
+        this.logger.info("Updating Docker image");
+        // Based on element-desktop yarn docker:setup but with a custom image name
+        return spawn("docker", [
+            "build",
+            "-t", this.imageName,
+            "dockerbuild",
+        ], {
+            cwd: this.cwd,
+            env: this.env,
+        });
+    }
+
+    public run(cmd: string, ...args: string[]): Promise<void> {
+        this.logger.info([cmd, ...args].join(' '));
+        return spawn(this.wrapper, [cmd].concat(...args), {
+            cwd: this.cwd,
+            env: this.env,
         });
     }
 }

@@ -19,7 +19,7 @@ import * as path from 'path';
 
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
-import logger from './logger';
+import rootLogger, { LoggableError, Logger } from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
@@ -46,7 +46,7 @@ function getNextBuildTime(d: Date): Date {
     return next;
 }
 
-async function getLastBuildTime(target: Target): Promise<number> {
+async function getLastBuildTime(target: Target, logger: Logger): Promise<number> {
     try {
         return parseInt(await fsProm.readFile('desktop_develop_lastBuilt_' + target.id, 'utf8'));
     } catch (e) {
@@ -55,7 +55,7 @@ async function getLastBuildTime(target: Target): Promise<number> {
     }
 }
 
-async function putLastBuildTime(target: Target, t: number): Promise<void> {
+async function putLastBuildTime(target: Target, t: number, logger: Logger): Promise<void> {
     try {
         await fsProm.writeFile('desktop_develop_lastBuilt_' + target.id, t.toString());
     } catch (e) {
@@ -75,7 +75,7 @@ function getBuildVersion(): string {
     return now.getFullYear() + month + date + buildNum;
 }
 
-async function pruneBuilds(dir: string, exp: RegExp): Promise<void> {
+async function pruneBuilds(dir: string, exp: RegExp, logger: Logger): Promise<void> {
     const builds = await getMatchingFilesInDir(dir, exp);
     builds.sort();
     const toDelete = builds.slice(0, 0 - KEEP_BUILDS_NUM);
@@ -106,8 +106,11 @@ export default class DesktopDevelopBuilder {
     ) { }
 
     public async start(): Promise<void> {
-        logger.info("Starting Element Desktop nightly builder...");
+        rootLogger.info("Starting Element Desktop nightly builder...");
+        const logger = rootLogger.threadLogger();
         this.building = false;
+
+        await WindowsBuilder.setDonglePower(false);
 
         // get the token passphrase now so a) we fail early if it's not in the keychain
         // and b) we know the keychain is unlocked because someone's sitting at the
@@ -120,12 +123,12 @@ export default class DesktopDevelopBuilder {
         this.lastBuildTimes = {};
         this.lastFailTimes = {};
         for (const target of ENABLED_TARGETS) {
-            this.lastBuildTimes[target.id] = await getLastBuildTime(target);
+            this.lastBuildTimes[target.id] = await getLastBuildTime(target, logger);
             this.lastFailTimes[target.id] = 0;
         }
 
         setInterval(this.poll, 30 * 1000);
-        this.poll();
+        await this.poll();
     }
 
     private poll = async (): Promise<void> => {
@@ -148,26 +151,36 @@ export default class DesktopDevelopBuilder {
             this.building = true;
 
             for (const target of toBuild) {
+                rootLogger.info("Starting build of " + target.id);
+                const jobReactionLogger = rootLogger.reactionLogger();
+                const logger = rootLogger.threadLogger();
                 try {
-                    logger.info("Starting build of " + target.id);
                     const thisBuildVersion = getBuildVersion();
-                    await this.build(target, thisBuildVersion);
+                    await this.build(target, thisBuildVersion, logger);
                     this.lastBuildTimes[target.id] = Date.now();
-                    await putLastBuildTime(target, this.lastBuildTimes[target.id]);
+                    await putLastBuildTime(target, this.lastBuildTimes[target.id], logger);
+                    jobReactionLogger.info("✅ Done!");
                 } catch (e) {
                     logger.error("Build failed!", e);
+                    jobReactionLogger.info("🚨 Failed!");
                     this.lastFailTimes[target.id] = Date.now();
+
+                    if (e instanceof LoggableError) {
+                        logger.file(e.log);
+                    }
+
                     // if one fails, bail out of the whole process: probably better
                     // to have all platforms not updating than just one
                     return;
                 }
             }
 
-            logger.info("Built packages for: " + toBuild.map(t => t.id).join(', ') + ": pushing packages...");
-            await pushArtifacts(this.pubDir, this.rsyncRoot);
-            logger.info("...push complete!");
+            rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
+            const reactionLogger = rootLogger.reactionLogger();
+            await pushArtifacts(this.pubDir, this.rsyncRoot, rootLogger);
+            reactionLogger.info("✅ Done!");
         } catch (e) {
-            logger.error("Artifact sync failed!", e);
+            rootLogger.error("Artifact sync failed!", e);
             // Mark all types as failed if artifact sync fails
             for (const target of toBuild) {
                 this.lastFailTimes[target.id] = Date.now();
@@ -175,7 +188,7 @@ export default class DesktopDevelopBuilder {
         } finally {
             this.building = false;
         }
-    }
+    };
 
     private async writeElectronBuilderConfigFile(
         target: Target,
@@ -220,15 +233,15 @@ export default class DesktopDevelopBuilder {
         );
     }
 
-    private async build(target: Target, buildVersion: string): Promise<void> {
+    private async build(target: Target, buildVersion: string, logger: Logger): Promise<void> {
         if (target.platform === 'win32') {
-            return this.buildWin(target as WindowsTarget, buildVersion);
+            return this.buildWin(target as WindowsTarget, buildVersion, logger);
         } else {
-            return this.buildLocal(target, buildVersion);
+            return this.buildLocal(target, buildVersion, logger);
         }
     }
 
-    private async buildLocal(target: Target, buildVersion: string): Promise<void> {
+    private async buildLocal(target: Target, buildVersion: string, logger: Logger): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
         const repoDir = path.join('builds', 'element-desktop-' + target.id + '-' + buildVersion);
         await rm(repoDir);
@@ -243,21 +256,23 @@ export default class DesktopDevelopBuilder {
                 buildVersion,
                 path.join(repoDir, 'element.io', 'nightly', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
+                logger,
             );
         }
 
         let runner: IRunner;
         switch (target.platform) {
             case 'darwin':
-                runner = this.makeMacRunner(repoDir);
+                runner = this.makeMacRunner(repoDir, logger);
                 break;
             case 'linux':
-                runner = this.makeLinuxRunner(repoDir);
+                runner = this.makeLinuxRunner(repoDir, logger);
                 break;
             default:
                 throw new Error(`Unexpected local target ${target.id}`);
         }
 
+        await runner.setup();
         await this.buildWithRunner(runner, buildVersion, target);
         logger.info("Build completed!");
 
@@ -271,12 +286,14 @@ export default class DesktopDevelopBuilder {
                     // be consistent with windows and don't bother putting the version number
                     // in the installer
                     path.join(this.appPubDir, 'install', 'macos', 'Element Nightly.dmg'),
+                    logger,
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
                     path.join(this.appPubDir, 'update', 'macos', f),
+                    logger,
                 );
             }
 
@@ -285,10 +302,10 @@ export default class DesktopDevelopBuilder {
             await fsProm.writeFile(latestPath, buildVersion);
 
             // prune update packages (the installer will just overwrite each time)
-            await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/);
+            await pruneBuilds(path.join(this.appPubDir, 'update', 'macos'), /-mac.zip$/, logger);
         } else if (target.platform === 'linux') {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.deb$/)) {
-                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f));
+                await addDeb(this.debDir, path.resolve(repoDir, 'dist', f), logger);
             }
         }
 
@@ -296,12 +313,13 @@ export default class DesktopDevelopBuilder {
         await rm(repoDir);
     }
 
-    private makeMacRunner(cwd: string): IRunner {
-        return new Runner(cwd);
+    private makeMacRunner(cwd: string, logger: Logger): IRunner {
+        return new Runner(cwd, logger);
     }
 
-    private makeLinuxRunner(cwd: string): IRunner {
-        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'), {
+    private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
+        const wrapper = path.join('scripts', 'in-docker.sh');
+        return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-develop", logger, {
             // Develop build needs the buildkite api key to fetch the web build
             INDOCKER_BUILDKITE_API_KEY: process.env['BUILDKITE_API_KEY'],
         });
@@ -334,7 +352,7 @@ export default class DesktopDevelopBuilder {
         await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
-    private async buildWin(target: WindowsTarget, buildVersion: string): Promise<void> {
+    private async buildWin(target: WindowsTarget, buildVersion: string, logger: Logger): Promise<void> {
         await fsProm.mkdir('builds', { recursive: true });
         // We're now running into Window's 260 character path limit. Adding a step
         // of 'faff about in the registry enabling NTFS long paths' to the list of
@@ -356,7 +374,13 @@ export default class DesktopDevelopBuilder {
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
 
         const builder = new WindowsBuilder(
-            repoDir, target, this.winVmName, this.winUsername, this.winPassword, this.riotSigningKeyContainer,
+            repoDir,
+            target,
+            this.winVmName,
+            this.winUsername,
+            this.winPassword,
+            this.riotSigningKeyContainer,
+            logger,
         );
 
         logger.info("Starting Windows builder for " + target.id + '...');
@@ -393,23 +417,30 @@ export default class DesktopDevelopBuilder {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Nightly Setup.exe'),
+                    logger,
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
                 );
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
                 );
             }
 
             // prune update packages (installers are overwritten each time)
-            await pruneBuilds(path.join(this.appPubDir, 'update', 'win32', archDir), /\.nupkg$/);
+            await pruneBuilds(path.join(this.appPubDir, 'update', 'win32', archDir), /\.nupkg$/, logger);
+        } catch (e) {
+            if (e instanceof LoggableError) {
+                logger.file(e.log);
+            }
         } finally {
             await builder.stop();
         }

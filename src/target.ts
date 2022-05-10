@@ -51,12 +51,12 @@ export type Target = {
     id: TargetId;
     platform: Platform;
     arch: Arch;
-}
+};
 
 export type WindowsTarget = Target & {
     platform: 'win32';
     vcVarsArch: VcVarsArch;
-}
+};
 
 export type LinuxTarget = Target & {
     platform: 'linux';
@@ -64,9 +64,9 @@ export type LinuxTarget = Target & {
 }
 
 export type UniversalTarget = Target & {
-    arch: 'universal',
-    subtargets: Target[],
-}
+    arch: 'universal';
+    subtargets: Target[];
+};
 
 const aarch64AppleDarwin: Target = {
     id: 'aarch64-apple-darwin',
@@ -95,14 +95,14 @@ const i686PcWindowsMsvc: WindowsTarget = {
     platform: 'win32',
     arch: 'ia32',
     vcVarsArch: 'x86',
-}
+};
 
 const x8664PcWindowsMsvc: WindowsTarget = {
     id: 'x86_64-pc-windows-msvc',
     platform: 'win32',
     arch: 'x64',
     vcVarsArch: 'amd64',
-}
+};
 
 const x8664UnknownLinuxGnu: LinuxTarget = {
     id: 'x86_64-unknown-linux-gnu',

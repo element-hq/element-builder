@@ -67,7 +67,7 @@ while (process.argv.length > 2) {
     process.argv.shift();
 }
 
-let builder;
+let builder: DesktopDevelopBuilder | DesktopReleaseBuilder;
 if (desktopBranch) {
     builder = new DesktopReleaseBuilder(
         winVmName, winUsername, winPassword, rsyncServer, desktopBranch);
