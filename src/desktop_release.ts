@@ -220,6 +220,7 @@ export default class DesktopReleaseBuilder {
                 throw new Error(`Unexpected local target ${target.id}`);
         }
 
+        await runner.setup();
         await this.buildWithRunner(runner, buildVersion, target);
         logger.info("Build completed!");
 
@@ -272,7 +273,8 @@ export default class DesktopReleaseBuilder {
     }
 
     private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
-        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'), logger, {
+        const wrapper = path.join('scripts', 'in-docker.sh');
+        return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-release", logger, {
             INDOCKER_GNUPGHOME: 'gnupg',
         });
     }

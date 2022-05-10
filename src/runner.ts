@@ -18,6 +18,7 @@ import { Logger } from "./logger";
 import { spawn } from "./spawn";
 
 export interface IRunner {
+    setup(): Promise<void>;
     run(cmd: string, ...args: string[]): Promise<void>;
 }
 
@@ -32,6 +33,10 @@ export default class Runner implements IRunner {
         if (env) {
             this.env = Object.assign({}, process.env, env);
         }
+    }
+
+    public async setup(): Promise<void> {
+        // nothing to do
     }
 
     public run(cmd: string, ...args: string[]): Promise<void> {

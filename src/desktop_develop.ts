@@ -272,6 +272,7 @@ export default class DesktopDevelopBuilder {
                 throw new Error(`Unexpected local target ${target.id}`);
         }
 
+        await runner.setup();
         await this.buildWithRunner(runner, buildVersion, target);
         logger.info("Build completed!");
 
@@ -317,7 +318,8 @@ export default class DesktopDevelopBuilder {
     }
 
     private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
-        return new DockerRunner(cwd, path.join('scripts', 'in-docker.sh'), logger, {
+        const wrapper = path.join('scripts', 'in-docker.sh');
+        return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-develop", logger, {
             // Develop build needs the buildkite api key to fetch the web build
             INDOCKER_BUILDKITE_API_KEY: process.env['BUILDKITE_API_KEY'],
         });

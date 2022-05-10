@@ -29,12 +29,28 @@ export default class DockerRunner implements IRunner {
     constructor(
         private readonly cwd: string,
         private readonly wrapper: string,
+        private readonly imageName: string,
         private readonly logger: Logger,
         env?: NodeJS.ProcessEnv,
     ) {
         if (env) {
-            this.env = Object.assign({}, process.env, env);
+            this.env = Object.assign({
+                DOCKER_IMAGE_NAME: imageName,
+            }, process.env, env);
         }
+    }
+
+    public async setup(): Promise<void> {
+        this.logger.info("Updating Docker image");
+        // Based on element-desktop yarn docker:setup but with a custom image name
+        return spawn("docker", [
+            "build",
+            "-t", this.imageName,
+            "dockerbuild",
+        ], {
+            cwd: this.cwd,
+            env: this.env,
+        });
     }
 
     public run(cmd: string, ...args: string[]): Promise<void> {
