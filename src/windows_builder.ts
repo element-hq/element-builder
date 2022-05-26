@@ -228,7 +228,7 @@ export default class WindowsBuilder {
     }
 
     private async vboxManage(cmd: string, ...args: string[]): Promise<void> {
-        return spawn('VBoxManage', [cmd].concat(args));
+        return spawn('VBoxManage', [cmd].concat(args), {}, false);
     }
 
     public static async setDonglePower(on: boolean): Promise<void> {

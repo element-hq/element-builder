@@ -22,25 +22,29 @@ export async function spawn(
     command: string,
     args: ReadonlyArray<string>,
     options: childProcess.SpawnOptions = {},
+    captureLog = true,
 ): Promise<void> {
     return new Promise((resolve, reject) => {
         const proc = childProcess.spawn(command, args, {
             ...options,
-            stdio: ["inherit", "pipe", "pipe"],
+            stdio: captureLog ? ["inherit", "pipe", "pipe"] : "inherit",
         });
-
-        proc.stdout.pipe(process.stdout);
-        proc.stderr.pipe(process.stderr);
 
         let log = "";
-        proc.stdout.on('data', (chunk) => {
-            log += chunk.toString();
-        });
-        proc.stderr.on('data', (chunk) => {
-            log += chunk.toString();
-        });
 
-        proc.on('exit', (code) => {
+        if (captureLog) {
+            proc.stdout.pipe(process.stdout);
+            proc.stderr.pipe(process.stderr);
+
+            proc.stdout.on('data', (chunk) => {
+                log += chunk.toString();
+            });
+            proc.stderr.on('data', (chunk) => {
+                log += chunk.toString();
+            });
+        }
+
+        proc.on('exit', (code?: number) => {
             if (!code) {
                 resolve();
                 return;
