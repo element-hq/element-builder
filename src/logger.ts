@@ -202,9 +202,7 @@ class EditLogContext extends MatrixLogContext {
                 event_id: this.eventId,
                 rel_type: "m.replace",
             },
-            "m.new_content": {
-                body: content["body"],
-            },
+            "m.new_content": content,
         };
     }
 }

@@ -26,7 +26,6 @@ import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
-import logger from "./logger";
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -155,7 +154,7 @@ export default class DesktopReleaseBuilder {
         );
     }
 
-    private async copyGnupgDir(repoDir: string) {
+    private async copyGnupgDir(repoDir: string, logger: Logger) {
         const dest = path.join(repoDir, 'gnupg');
         // We copy rather than symlink so an individual builder can't
         // overwrite the cert used for all the other ones, however
@@ -206,7 +205,7 @@ export default class DesktopReleaseBuilder {
             );
         }
 
-        await this.copyGnupgDir(repoDir);
+        await this.copyGnupgDir(repoDir, logger);
 
         let runner: IRunner;
         switch (target.platform) {
@@ -329,7 +328,7 @@ export default class DesktopReleaseBuilder {
 
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
 
-        await this.copyGnupgDir(repoDir);
+        await this.copyGnupgDir(repoDir, logger);
 
         const builder = new WindowsBuilder(
             repoDir,
