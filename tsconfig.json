@@ -7,5 +7,6 @@
     "include": [
         ".eslintrc.js",
         "./src/**/*.ts",
+        "./node_modules/element-desktop/scripts/hak/target.ts"
     ]
 }
