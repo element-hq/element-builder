@@ -16,6 +16,7 @@ limitations under the License.
 
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
+import { Target, UniversalTarget, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
 import getSecret from './get_secret';
 import GitRepo from './gitrepo';
@@ -23,7 +24,6 @@ import rootLogger, { LoggableError, Logger } from './logger';
 import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
-import { ENABLED_TARGETS, Target, UniversalTarget, WindowsTarget } from './target';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
 
@@ -41,6 +41,7 @@ export default class DesktopReleaseBuilder {
     private riotSigningKeyContainer: string;
 
     constructor(
+        private readonly targets: Target[],
         private winVmName: string,
         private winUsername: string,
         private winPassword: string,
@@ -82,8 +83,7 @@ export default class DesktopReleaseBuilder {
 
         if (this.building) return;
 
-        const toBuild = ENABLED_TARGETS;
-
+        const toBuild = this.targets;
         if (toBuild.length === 0) return;
 
         try {

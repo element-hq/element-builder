@@ -11,7 +11,8 @@
     "build": "tsc"
   },
   "dependencies": {
-    "rimraf": "^3.0.2"
+    "rimraf": "^3.0.2",
+    "element-desktop": "vector-im/element-desktop#develop"
   },
   "devDependencies": {
     "@types/node": "14",

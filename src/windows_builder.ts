@@ -17,8 +17,8 @@ limitations under the License.
 import * as path from 'path';
 import { promises as fsProm } from 'fs';
 import * as childProcess from 'child_process';
+import { WindowsTarget } from 'element-desktop/scripts/hak/target';
 
-import { WindowsTarget } from './target';
 import { Logger } from "./logger";
 import { spawn } from "./spawn";
 
@@ -228,7 +228,7 @@ export default class WindowsBuilder {
     }
 
     private async vboxManage(cmd: string, ...args: string[]): Promise<void> {
-        return spawn('VBoxManage', [cmd].concat(args));
+        return spawn('VBoxManage', [cmd].concat(args), {}, false);
     }
 
     public static async setDonglePower(on: boolean): Promise<void> {

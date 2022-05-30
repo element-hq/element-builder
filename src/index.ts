@@ -16,6 +16,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { Target, TARGETS } from 'element-desktop/scripts/hak/target';
+
 import logger from './logger';
 import DesktopDevelopBuilder from './desktop_develop';
 import DesktopReleaseBuilder from './desktop_release';
@@ -67,12 +69,19 @@ while (process.argv.length > 2) {
     process.argv.shift();
 }
 
+// The set of targets we build by default, sorted by increasing complexity so
+// that we fail fast when the native host target fails.
+const targets: Target[] = [
+    TARGETS['universal-apple-darwin'],
+    TARGETS['x86_64-unknown-linux-gnu'],
+    TARGETS['x86_64-pc-windows-msvc'],
+    TARGETS['i686-pc-windows-msvc'],
+];
+
 let builder: DesktopDevelopBuilder | DesktopReleaseBuilder;
 if (desktopBranch) {
-    builder = new DesktopReleaseBuilder(
-        winVmName, winUsername, winPassword, rsyncServer, desktopBranch);
+    builder = new DesktopReleaseBuilder(targets, winVmName, winUsername, winPassword, rsyncServer, desktopBranch);
 } else {
-    builder = new DesktopDevelopBuilder(
-        winVmName, winUsername, winPassword, rsyncServer);
+    builder = new DesktopDevelopBuilder(targets, winVmName, winUsername, winPassword, rsyncServer);
 }
 builder.start();
