@@ -22,7 +22,7 @@ import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
 import { IRunner } from './runner';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
+import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm, copyMatchingFiles, updateSymlink } from './artifacts';
 import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
 
 export default class DesktopReleaseBuilder extends DesktopBuilder {
@@ -182,30 +182,19 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
+            const distDir = path.join(repoDir, 'dist');
+            const targetDir = path.join(this.appPubDir, 'install', 'macos');
+            for (const f of await getMatchingFilesInDir(distDir, /\.dmg$/)) {
                 await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'install', 'macos', f),
+                    path.join(distDir, f),
+                    path.join(targetDir, f),
                     logger,
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
-                logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
-                try {
-                    await fsProm.unlink(latestInstallPath);
-                } catch (e) {
-                    // probably just didn't exist
-                    logger.info("Failed to remove latest symlink", e);
-                }
-                await fsProm.symlink(f, latestInstallPath, 'file');
+                await updateSymlink(f, latestInstallPath, logger);
             }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'update', 'macos', f),
-                    logger,
-                );
-            }
+            await copyMatchingFiles(distDir, targetDir, /-mac.zip$/, logger);
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
@@ -295,32 +284,20 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
+            const distDir = path.join(repoDir, 'dist', squirrelDir);
+            const targetDir = path.join(this.appPubDir, 'install', 'win32', archDir);
+            for (const f of await getMatchingFilesInDir(distDir, /\.exe$/)) {
                 await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, f),
+                    path.join(distDir, f),
+                    path.join(targetDir, f),
                     logger,
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
-                logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
-                await fsProm.unlink(latestInstallPath);
-                await fsProm.symlink(f, latestInstallPath, 'file');
+                await updateSymlink(f, latestInstallPath, logger);
             }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
-                    logger,
-                );
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
-                    logger,
-                );
-            }
+            await copyMatchingFiles(distDir, targetDir, /\.nupkg$/, logger);
+            await copyMatchingFiles(distDir, targetDir, /^RELEASES$/, logger);
         } finally {
             await builder.stop();
         }

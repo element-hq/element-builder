@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { promises as fsProm } from 'fs';
+import * as path from "path";
 import * as rimraf from 'rimraf';
 
 import { Logger } from './logger';
@@ -45,10 +46,31 @@ export function copyAndLog(src: string, dest: string, logger: Logger): Promise<v
     return fsProm.copyFile(src, dest);
 }
 
+export async function copyMatchingFiles(sourceDir: string, targetDir, exp: RegExp, logger: Logger): Promise<void> {
+    for (const f of await getMatchingFilesInDir(sourceDir, exp)) {
+        await copyAndLog(
+            path.join(sourceDir, f),
+            path.join(targetDir, f),
+            logger,
+        );
+    }
+}
+
 export function rm(path: string): Promise<void> {
     return new Promise((resolve, reject) => {
         rimraf(path, (err) => {
             err ? reject(err) : resolve();
         });
     });
+}
+
+export async function updateSymlink(target: string, symlink: string, logger: Logger): Promise<void> {
+    logger.info('Update latest symlink ' + symlink + ' -> ' + target);
+    try {
+        await fsProm.unlink(symlink);
+    } catch (e) {
+        // probably just didn't exist
+        logger.info("Failed to remove latest symlink", e);
+    }
+    await fsProm.symlink(target, symlink, 'file');
 }

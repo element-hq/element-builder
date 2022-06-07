@@ -23,7 +23,7 @@ import rootLogger, { LoggableError, Logger } from './logger';
 import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
+import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm, copyMatchingFiles } from './artifacts';
 import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE, Package, PackageBuild } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
@@ -236,22 +236,17 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
+            const distDir = path.join(repoDir, 'dist');
+            const targetDir = path.join(this.appPubDir, 'install', 'macos');
+            for (const f of await getMatchingFilesInDir(distDir, /\.dmg$/)) {
                 await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    // be consistent with windows and don't bother putting the version number
-                    // in the installer
-                    path.join(this.appPubDir, 'install', 'macos', 'Element Nightly.dmg'),
+                    path.join(distDir, f),
+                    // Be consistent with windows and don't bother putting the version number in the installer
+                    path.join(targetDir, 'Element Nightly.dmg'),
                     logger,
                 );
             }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'update', 'macos', f),
-                    logger,
-                );
-            }
+            await copyMatchingFiles(distDir, targetDir, /-mac.zip$/, logger);
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
@@ -338,27 +333,17 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
+            const distDir = path.join(repoDir, 'dist', squirrelDir);
+            const targetDir = path.join(this.appPubDir, 'install', 'win32', archDir);
+            for (const f of await getMatchingFilesInDir(distDir, /\.exe$/)) {
                 await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Nightly Setup.exe'),
+                    path.join(distDir, f),
+                    path.join(targetDir, 'Element Nightly Setup.exe'),
                     logger,
                 );
             }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
-                    logger,
-                );
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
-                    logger,
-                );
-            }
+            await copyMatchingFiles(distDir, targetDir, /\.nupkg$/, logger);
+            await copyMatchingFiles(distDir, targetDir, /^RELEASES$/, logger);
 
             // prune update packages (installers are overwritten each time)
             await pruneBuilds(path.join(this.appPubDir, 'update', 'win32', archDir), /\.nupkg$/, logger);
