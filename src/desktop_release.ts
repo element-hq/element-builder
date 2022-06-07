@@ -16,7 +16,7 @@ limitations under the License.
 
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
-import { Target, UniversalTarget, WindowsTarget } from 'element-desktop/scripts/hak/target';
+import { Target, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
 import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
@@ -119,9 +119,8 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         // copied, so just copy specific files.
         await fsProm.mkdir(dest);
 
-        // XXX: The docker image we use has gnupg 1 so uses
-        // pubring.gpg rather than pubring.kbx. If we use the
-        // old gpg format, that works with both.
+        // XXX: The docker image we use has gnupg 1 so uses pubring.gpg rather than pubring.kbx.
+        // If we use the old gpg format, that works with both.
         for (const f of ['pubring.gpg', 'trustdb.gpg']) {
             await copyAndLog(
                 path.join(this.gnupgDir, f),
@@ -232,33 +231,9 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         return "element-desktop-dockerbuild-release";
     }
 
-    private async buildWithRunner(
-        runner: IRunner,
-        buildVersion: string,
-        target: Target,
-    ): Promise<void> {
-        await runner.run('yarn', 'install');
-        if (target.arch == 'universal') {
-            for (const subTarget of (target as UniversalTarget).subtargets) {
-                await runner.run('yarn', 'run', 'hak', 'check', '--target', subTarget.id);
-            }
-            for (const subTarget of (target as UniversalTarget).subtargets) {
-                await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
-            }
-            const targetArgs = [];
-            for (const st of (target as UniversalTarget).subtargets) {
-                targetArgs.push('--target');
-                targetArgs.push(st.id);
-            }
-            await runner.run('yarn', 'run', 'hak', 'copy', ...targetArgs);
-        } else {
-            await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
-            await runner.run('yarn', 'run', 'build:native', '--target', target.id);
-        }
-        // This will fetch the Element release from GitHub that matches the version
-        // in element-desktop's package.json.
-        await runner.run('yarn', 'run', 'fetch', '-d', 'element.io/release');
-        await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
+    protected fetchArgs(): string[] {
+        // This will fetch the Element release from GitHub that matches the version in element-desktop's package.json.
+        return ['-d', 'element.io/release'];
     }
 
     private async buildWin(target: WindowsTarget, logger: Logger): Promise<void> {

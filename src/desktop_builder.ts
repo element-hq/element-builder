@@ -16,7 +16,7 @@ limitations under the License.
 
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
-import { Target, WindowsTarget } from "element-desktop/scripts/hak/target";
+import { Target, UniversalTarget, WindowsTarget } from "element-desktop/scripts/hak/target";
 
 import { Logger } from "./logger";
 import Runner, { IRunner } from "./runner";
@@ -92,6 +92,8 @@ export default abstract class DesktopBuilder {
         protected readonly winPassword: string,
         protected readonly rsyncRoot: string,
     ) { }
+
+    public abstract start(): Promise<void>;
 
     protected async loadSigningKeyContainer() {
         // get the token passphrase now so
@@ -172,6 +174,35 @@ export default abstract class DesktopBuilder {
             path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
             JSON.stringify(cfg, null, 4),
         );
+    }
+
+    protected abstract fetchArgs(): string[];
+
+    protected async buildWithRunner(
+        runner: IRunner,
+        buildVersion: string,
+        target: Target,
+    ): Promise<void> {
+        await runner.run('yarn', 'install');
+        if (target.arch == 'universal') {
+            for (const subTarget of (target as UniversalTarget).subtargets) {
+                await runner.run('yarn', 'run', 'hak', 'check', '--target', subTarget.id);
+            }
+            for (const subTarget of (target as UniversalTarget).subtargets) {
+                await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
+            }
+            const targetArgs = [];
+            for (const st of (target as UniversalTarget).subtargets) {
+                targetArgs.push('--target');
+                targetArgs.push(st.id);
+            }
+            await runner.run('yarn', 'run', 'hak', 'copy', ...targetArgs);
+        } else {
+            await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
+            await runner.run('yarn', 'run', 'build:native', '--target', target.id);
+        }
+        await runner.run('yarn', 'run', 'fetch', ...this.fetchArgs());
+        await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 }
 

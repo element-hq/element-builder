@@ -16,7 +16,7 @@ limitations under the License.
 
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
-import { Target, TargetId, UniversalTarget, WindowsTarget } from 'element-desktop/scripts/hak/target';
+import { Target, TargetId, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
 import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
@@ -281,31 +281,8 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         return "element-desktop-dockerbuild-develop";
     }
 
-    private async buildWithRunner(
-        runner: IRunner,
-        buildVersion: string,
-        target: Target,
-    ): Promise<void> {
-        await runner.run('yarn', 'install');
-        if (target.arch == 'universal') {
-            for (const subTarget of (target as UniversalTarget).subtargets) {
-                await runner.run('yarn', 'run', 'hak', 'check', '--target', subTarget.id);
-            }
-            for (const subTarget of (target as UniversalTarget).subtargets) {
-                await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
-            }
-            const targetArgs = [];
-            for (const st of (target as UniversalTarget).subtargets) {
-                targetArgs.push('--target');
-                targetArgs.push(st.id);
-            }
-            await runner.run('yarn', 'run', 'hak', 'copy', ...targetArgs);
-        } else {
-            await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
-            await runner.run('yarn', 'run', 'build:native', '--target', target.id);
-        }
-        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'element.io/nightly');
-        await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
+    protected fetchArgs(): string[] {
+        return ["develop", "-d", "element.io/nightly"];
     }
 
     private async buildWin(target: WindowsTarget, buildVersion: string, logger: Logger): Promise<void> {
