@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { promises as fsProm } from 'fs';
 import * as path from 'path';
 import { Target, WindowsTarget } from "element-desktop/scripts/hak/target";
 
@@ -25,6 +26,58 @@ import getSecret from "./get_secret";
 
 export const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 export const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
+
+interface File {
+    from: string;
+    to: string;
+}
+
+export interface PackageBuild {
+    appId: string;
+    asarUnpack: string;
+    files: Array<string | File>;
+    extraResources: Array<string | File>;
+    linux: {
+        target: string;
+        category: string;
+        maintainer: string;
+        desktop: {
+            StartupWMClass: string;
+        };
+    };
+    mac: {
+        category: string;
+        darkModeSupport: boolean;
+    };
+    win: {
+        target: {
+            target: string;
+        };
+        sign: string;
+    };
+    deb?: {
+        fpm?: string[];
+    };
+    directories: {
+        output: string;
+    };
+    afterPack: string;
+    afterSign: string;
+    protocols: Array<{
+        name: string;
+        schemes: string[];
+    }>;
+    extraMetadata?: {
+        productName?: string;
+        name?: string;
+        version?: string;
+    };
+}
+
+export interface Package {
+    build: PackageBuild;
+    productName: string;
+}
 
 export default abstract class DesktopBuilder {
     protected readonly pubDir = path.join(process.cwd(), 'packages.riot.im');
@@ -77,6 +130,47 @@ export default abstract class DesktopBuilder {
             this.signingKeyContainer,
             logger,
             this.getBuildEnv(),
+        );
+    }
+
+    protected getProductName(pkg: Package): string {
+        return pkg.productName;
+    }
+
+    protected getElectronBuilderConfig(
+        pkg: Package,
+        target: Target,
+        buildVersion: string,
+    ): PackageBuild {
+        return {
+            ...pkg.build,
+            extraMetadata: {
+                productName: this.getProductName(pkg),
+            },
+            deb: {
+                fpm: ["--deb-custom-control=debcontrol"],
+            },
+        };
+    }
+
+    protected async writeElectronBuilderConfigFile(
+        target: Target,
+        repoDir: string,
+        buildVersion: string,
+    ): Promise<void> {
+        // Electron builder doesn't overlay with the config in package.json, so load it here
+        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8'));
+
+        const cfg = this.getElectronBuilderConfig(pkg, target, buildVersion);
+        if (target.platform === "linux") {
+            // Electron crashes on debian if there's a space in the path.
+            // https://github.com/vector-im/element-web/issues/13171
+            cfg.extraMetadata.productName = cfg.extraMetadata.productName.replace(/ /g, "-");
+        }
+
+        await fsProm.writeFile(
+            path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
+            JSON.stringify(cfg, null, 4),
         );
     }
 }

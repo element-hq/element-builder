@@ -110,36 +110,6 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         }
     }
 
-    private async writeElectronBuilderConfigFile(
-        target: Target,
-        repoDir: string,
-        buildVersion: string,
-    ): Promise<void> {
-        // Electron builder doesn't overlay with the config in package.json,
-        // so load it here
-        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8'));
-        const cfg = pkg.build;
-
-        // Electron crashes on debian if there's a space in the path.
-        // https://github.com/vector-im/element-web/issues/13171
-        const productName = target.platform === 'linux' ? 'Element' : pkg.productName;
-
-        Object.assign(cfg, {
-            extraMetadata: {
-                productName,
-            },
-            deb: {
-                fpm: [
-                    "--deb-custom-control=debcontrol",
-                ],
-            },
-        });
-        await fsProm.writeFile(
-            path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
-            JSON.stringify(cfg, null, 4),
-        );
-    }
-
     private async copyGnupgDir(repoDir: string, logger: Logger) {
         const dest = path.join(repoDir, 'gnupg');
         // We copy rather than symlink so an individual builder can't

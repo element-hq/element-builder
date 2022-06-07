@@ -24,7 +24,7 @@ import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
-import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
+import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE, Package, PackageBuild } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
@@ -168,47 +168,25 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         }
     };
 
-    private async writeElectronBuilderConfigFile(
-        target: Target,
-        repoDir: string,
-        buildVersion: string,
-    ): Promise<void> {
-        // Electron builder doesn't overlay with the config in package.json,
-        // so load it here
-        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8'));
-        const cfg = pkg.build;
-
-        // Electron crashes on debian if there's a space in the path.
-        // https://github.com/vector-im/element-web/issues/13171
-        const productName = target.platform === 'linux' ? 'Element-Nightly' : 'Element Nightly';
-
-        // the windows packager relies on parsing this as semver, so we have
-        // to make it look like one. This will give our update packages really
-        // stupid names but we probably can't change that either because squirrel
-        // windows parses them for the version too. We don't really care: nobody
-        // sees them. We just give the installer a static name, so you'll just
-        // see this in the 'about' dialog.
+    protected getElectronBuilderConfig(pkg: Package, target: Target, buildVersion: string): PackageBuild {
+        // The windows packager relies on parsing this as semver, so we have to make it look like one.
+        // This will give our update packages really stupid names, but we probably can't change that either
+        // because squirrel windows parses them for the version too. We don't really care: nobody  sees them.
+        // We just give the installer a static name, so you'll just see this in the 'about' dialog.
         // Turns out if you use 0.0.0 here it makes Squirrel windows crash, so we use 0.0.1.
         const version = target.platform === 'win32' ? '0.0.1-nightly.' + buildVersion : buildVersion;
 
-        Object.assign(cfg, {
+        const cfg = super.getElectronBuilderConfig(pkg, target, buildVersion);
+        return {
+            ...cfg,
             // We override a lot of the metadata for the nightly build
             extraMetadata: {
+                ...cfg.extraMetadata,
                 name: "element-desktop-nightly",
-                productName,
                 version,
             },
             appId: "im.riot.nightly",
-            deb: {
-                fpm: [
-                    "--deb-custom-control=debcontrol",
-                ],
-            },
-        });
-        await fsProm.writeFile(
-            path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
-            JSON.stringify(cfg, null, 4),
-        );
+        };
     }
 
     private async build(target: Target, buildVersion: string, logger: Logger): Promise<void> {
