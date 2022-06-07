@@ -26,9 +26,7 @@ import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
-
-const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
-const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
+import { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
 
 export default class DesktopReleaseBuilder {
     private pubDir = path.join(process.cwd(), 'packages.riot.im');

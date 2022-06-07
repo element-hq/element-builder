@@ -26,9 +26,8 @@ import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
+import { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
 
-const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
-const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
 // take a date object and advance it to 9am the next morning
