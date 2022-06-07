@@ -21,7 +21,7 @@ import { Logger } from './logger';
 import { spawn } from "./spawn";
 
 export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<string[]> {
-    const ret = [];
+    const ret: string[] = [];
     for (const f of await fsProm.readdir(dir)) {
         if (exp.test(f)) {
             ret.push(f);

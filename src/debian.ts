@@ -22,7 +22,7 @@ import { spawn } from "./spawn";
 
 async function getRepoTargets(repoDir: string): Promise<string[]> {
     const confDistributions = await fsProm.readFile(path.join(repoDir, 'conf', 'distributions'), 'utf8');
-    const ret = [];
+    const ret: string[] = [];
     for (const line of confDistributions.split('\n')) {
         if (line.startsWith('Codename')) {
             ret.push(line.split(': ')[1]);
