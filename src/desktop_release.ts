@@ -270,7 +270,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
     private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
         const wrapper = path.join('scripts', 'in-docker.sh');
         return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-release", logger, {
-            INDOCKER_GNUPGHOME: 'gnupg',
+            GNUPGHOME: 'gnupg',
         });
     }
 

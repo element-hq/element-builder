@@ -31,13 +31,16 @@ export default class DockerRunner implements IRunner {
         private readonly wrapper: string,
         private readonly imageName: string,
         private readonly logger: Logger,
-        env?: NodeJS.ProcessEnv,
+        env: NodeJS.ProcessEnv = {},
     ) {
-        if (env) {
-            this.env = Object.assign({
-                DOCKER_IMAGE_NAME: imageName,
-            }, process.env, env);
-        }
+        this.env = {
+            ...process.env,
+            DOCKER_IMAGE_NAME: imageName,
+        };
+        // Prefix any env vars passed with INDOCKER_ for the in-docker.sh script to forward them
+        Object.keys(env).forEach(k => {
+            this.env["INDOCKER_" + k] = env[k];
+        });
     }
 
     public async setup(): Promise<void> {

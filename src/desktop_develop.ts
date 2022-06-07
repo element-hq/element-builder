@@ -309,7 +309,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         const wrapper = path.join('scripts', 'in-docker.sh');
         return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-develop", logger, {
             // Develop build needs the buildkite api key to fetch the web build
-            INDOCKER_BUILDKITE_API_KEY: process.env['BUILDKITE_API_KEY'],
+            BUILDKITE_API_KEY: process.env['BUILDKITE_API_KEY'],
         });
     }
 
