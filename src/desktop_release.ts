@@ -26,26 +26,24 @@ import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
-import { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
+import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
 
-export default class DesktopReleaseBuilder {
-    private pubDir = path.join(process.cwd(), 'packages.riot.im');
-    // This should be a reprepro dir with a config redirecting
-    // the output to pub/debian
-    private debDir = path.join(process.cwd(), 'debian');
+export default class DesktopReleaseBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'desktop');
     private gnupgDir = path.join(process.cwd(), 'gnupg');
     private building = false;
     private riotSigningKeyContainer: string;
 
     constructor(
-        private readonly targets: Target[],
-        private winVmName: string,
-        private winUsername: string,
-        private winPassword: string,
-        private rsyncRoot: string,
-        private desktopBranch: string,
-    ) { }
+        targets: Target[],
+        winVmName: string,
+        winUsername: string,
+        winPassword: string,
+        rsyncRoot: string,
+        private readonly desktopBranch: string,
+    ) {
+        super(targets, winVmName, winUsername, winPassword, rsyncRoot);
+    }
 
     public async start(): Promise<void> {
         rootLogger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);

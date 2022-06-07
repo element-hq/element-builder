@@ -14,6 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import * as path from 'path';
+import { Target } from "element-desktop/scripts/hak/target";
+
 export const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 export const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
+
+export default abstract class DesktopBuilder {
+    protected readonly pubDir = path.join(process.cwd(), 'packages.riot.im');
+    // This should be a reprepro dir with a config redirecting  the output to pub/debian
+    protected readonly debDir = path.join(process.cwd(), 'debian');
+
+    constructor(
+        protected readonly targets: Target[],
+        protected readonly winVmName: string,
+        protected readonly winUsername: string,
+        protected readonly winPassword: string,
+        protected readonly rsyncRoot: string,
+    ) { }
+}
 

@@ -26,7 +26,7 @@ import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
-import { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
+import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
@@ -86,24 +86,12 @@ async function pruneBuilds(dir: string, exp: RegExp, logger: Logger): Promise<vo
     }
 }
 
-export default class DesktopDevelopBuilder {
-    private pubDir = path.join(process.cwd(), 'packages.riot.im');
-    // This should be a reprepro dir with a config redirecting
-    // the output to pub/debian
-    private debDir = path.join(process.cwd(), 'debian');
+export default class DesktopDevelopBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'nightly');
     private building = false;
     private riotSigningKeyContainer: string;
     private lastBuildTimes: Partial<Record<TargetId, number>> = {};
     private lastFailTimes: Partial<Record<TargetId, number>> = {};
-
-    constructor(
-        private readonly targets: Target[],
-        private winVmName: string,
-        private winUsername: string,
-        private winPassword: string,
-        private rsyncRoot: string,
-    ) { }
 
     public async start(): Promise<void> {
         rootLogger.info("Starting Element Desktop nightly builder...");
