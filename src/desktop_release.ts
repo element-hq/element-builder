@@ -18,7 +18,6 @@ import { promises as fsProm } from 'fs';
 import * as path from 'path';
 import { Target, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
-import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
 import { IRunner } from './runner';
 import { setDebVersion, addDeb } from './debian';
@@ -139,15 +138,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
     }
 
     private async buildLocal(target: Target, logger: Logger): Promise<void> {
-        await fsProm.mkdir('builds', { recursive: true });
-        const repoDir = path.join('builds', 'element-desktop-' + target.id + '-' + this.desktopBranch);
-        await rm(repoDir);
-        logger.info("Cloning element-desktop into " + repoDir);
-        const repo = new GitRepo(repoDir);
-        // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
-        await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
-        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${target.id}`);
-
+        const { repoDir } = await this.cloneRepo(target, this.desktopBranch, logger, this.desktopBranch);
         const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8')).version;
 
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
@@ -226,21 +217,9 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
     }
 
     private async buildWin(target: WindowsTarget, logger: Logger): Promise<void> {
-        await fsProm.mkdir('builds', { recursive: true });
-        // Windows long paths (see desktop_develop.ts)
-        //const buildDirName = 'element-desktop-' + target.id + '-' + this.desktopBranch;
-        const buildDirName = 'ed' + target.arch + this.desktopBranch;
-        const repoDir = path.join('builds', buildDirName);
-        await rm(repoDir);
-
-        // we still check out the repo locally because we need package.json
-        // to write the electron builder config file, so we check out the
-        // repo twice for windows: once locally and once on the VM...
-        logger.info("Cloning element-desktop into " + repoDir);
-        const repo = new GitRepo(repoDir);
-        // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
-        await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
-        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${target.id}`);
+        // We still check out the repo locally because we need package.json to write the electron builder config file,
+        // so we check out the repo twice for windows: once locally and once on the VM...
+        const { repoDir, buildDirName } = await this.cloneRepo(target, this.desktopBranch, logger, this.desktopBranch);
 
         const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8')).version;
 

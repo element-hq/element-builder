@@ -23,6 +23,8 @@ import Runner, { IRunner } from "./runner";
 import DockerRunner from "./docker_runner";
 import WindowsBuilder from "./windows_builder";
 import getSecret from "./get_secret";
+import { rm } from "./artifacts";
+import GitRepo from "./gitrepo";
 
 export const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 export const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -203,6 +205,37 @@ export default abstract class DesktopBuilder {
         }
         await runner.run('yarn', 'run', 'fetch', ...this.fetchArgs());
         await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
+    }
+
+    protected async cloneRepo(target: Target, buildVersion: string, logger: Logger, branch = "develop"): Promise<{
+        buildDirName: string;
+        repoDir: string;
+        repo: GitRepo;
+    }> {
+        await fsProm.mkdir('builds', { recursive: true });
+
+        let buildDirName = `element-desktop-${target.id}-${buildVersion}`;
+        if (target.platform === "win32") {
+            // We're now running into Window's 260 character path limit. Adding a step of 'faff about in the registry
+            // enabling NTFS long paths' to the list of things to do when setting up a build box seems undesirable:
+            // this is an easy place to save some characters: abbreviate element-desktop, omit the hyphens  and just use
+            // the arch (because, at least at the moment, the only vaguely supported variations on Windows is the arch).
+            buildDirName = `ed${target.arch}${buildVersion}`;
+        }
+
+        const repoDir = path.join('builds', buildDirName);
+        await rm(repoDir);
+        logger.info("Cloning element-desktop into " + repoDir);
+
+        const repo = new GitRepo(repoDir);
+        await repo.clone(DESKTOP_GIT_REPO, repoDir, "-b", branch);
+        logger.info(`...checked out '${branch}' branch, starting build for ${target.id}`);
+
+        return {
+            repo,
+            repoDir,
+            buildDirName,
+        };
     }
 }
 

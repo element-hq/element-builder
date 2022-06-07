@@ -18,7 +18,6 @@ import { promises as fsProm } from 'fs';
 import * as path from 'path';
 import { Target, TargetId, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
-import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
 import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
@@ -198,13 +197,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
     }
 
     private async buildLocal(target: Target, buildVersion: string, logger: Logger): Promise<void> {
-        await fsProm.mkdir('builds', { recursive: true });
-        const repoDir = path.join('builds', 'element-desktop-' + target.id + '-' + buildVersion);
-        await rm(repoDir);
-        logger.info("Cloning element-desktop into " + repoDir);
-        const repo = new GitRepo(repoDir);
-        await repo.clone(DESKTOP_GIT_REPO, repoDir);
-        logger.info("...checked out 'develop' branch, starting build for " + target.id);
+        const { repoDir } = await this.cloneRepo(target, buildVersion, logger);
 
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
         if (target.platform === 'linux') {
@@ -281,24 +274,10 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
     }
 
     private async buildWin(target: WindowsTarget, buildVersion: string, logger: Logger): Promise<void> {
-        await fsProm.mkdir('builds', { recursive: true });
-        // We're now running into Window's 260 character path limit. Adding a step
-        // of 'faff about in the registry enabling NTFS long paths' to the list of
-        // things to do when setting up a build box seems undesirable: this is an easy
-        // place to save some characters: abbreviate element-desktop, omit the hyphens
-        // and just use the arch (becuse, at least at the moment, the only vaguely
-        // supported variations on windows is the arch).
-        //const buildDirName = 'element-desktop-' + target.id + '-' + buildVersion;
-        const buildDirName = 'ed' + target.arch + buildVersion;
-        const repoDir = path.join('builds', buildDirName);
-        await rm(repoDir);
+        // We still check out the repo locally because we need package.json to write the electron builder config file,
+        // so we check out the repo twice for windows: once locally and once on the VM...
+        const { repoDir, buildDirName } = await this.cloneRepo(target, buildVersion, logger);
 
-        // we still check out the repo locally because we need package.json
-        // to write the electron builder config file, so we check out the
-        // repo twice for windows: once locally and once on the VM...
-        const repo = new GitRepo(repoDir);
-        await repo.clone(DESKTOP_GIT_REPO, repoDir);
-        //await fsProm.mkdir(repoDir);
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
 
         const builder = this.makeWindowsBuilder(repoDir, target, logger);
