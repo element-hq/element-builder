@@ -15,7 +15,13 @@ limitations under the License.
 */
 
 import * as path from 'path';
-import { Target } from "element-desktop/scripts/hak/target";
+import { Target, WindowsTarget } from "element-desktop/scripts/hak/target";
+
+import { Logger } from "./logger";
+import Runner, { IRunner } from "./runner";
+import DockerRunner from "./docker_runner";
+import WindowsBuilder from "./windows_builder";
+import getSecret from "./get_secret";
 
 export const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 export const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -24,6 +30,7 @@ export default abstract class DesktopBuilder {
     protected readonly pubDir = path.join(process.cwd(), 'packages.riot.im');
     // This should be a reprepro dir with a config redirecting  the output to pub/debian
     protected readonly debDir = path.join(process.cwd(), 'debian');
+    protected signingKeyContainer: string;
 
     constructor(
         protected readonly targets: Target[],
@@ -32,5 +39,45 @@ export default abstract class DesktopBuilder {
         protected readonly winPassword: string,
         protected readonly rsyncRoot: string,
     ) { }
+
+    protected async loadSigningKeyContainer() {
+        // get the token passphrase now so
+        //   a) we fail early if it's not in the keychain
+        //   b) we know the keychain is unlocked because someone's sitting at the computer to start the builder.
+        // NB. We supply the passphrase via a barely-documented feature of signtool
+        // where it can parse it out of the name of the key container, so this
+        // is actually the key container in the format [{{passphrase}}]=container
+        this.signingKeyContainer = await getSecret('riot_key_container');
+    }
+
+    protected getBuildEnv(): NodeJS.ProcessEnv {
+        return {};
+    }
+
+    protected getDockerImageName(): string {
+        return "element-desktop-dockerbuild";
+    }
+
+    protected makeMacRunner(cwd: string, logger: Logger): IRunner {
+        return new Runner(cwd, logger, this.getBuildEnv());
+    }
+
+    protected makeLinuxRunner(cwd: string, logger: Logger): IRunner {
+        const wrapper = path.join('scripts', 'in-docker.sh');
+        return new DockerRunner(cwd, wrapper, this.getDockerImageName(), logger, this.getBuildEnv());
+    }
+
+    protected makeWindowsBuilder(repoDir: string, target: WindowsTarget, logger: Logger): WindowsBuilder {
+        return new WindowsBuilder(
+            repoDir,
+            target,
+            this.winVmName,
+            this.winUsername,
+            this.winPassword,
+            this.signingKeyContainer,
+            logger,
+            this.getBuildEnv(),
+        );
+    }
 }
 

@@ -18,12 +18,9 @@ import { promises as fsProm } from 'fs';
 import * as path from 'path';
 import { Target, UniversalTarget, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
-import getSecret from './get_secret';
 import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
-import Runner, { IRunner } from './runner';
-import DockerRunner from './docker_runner';
-import WindowsBuilder from './windows_builder';
+import { IRunner } from './runner';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
 import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
@@ -32,7 +29,6 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'desktop');
     private gnupgDir = path.join(process.cwd(), 'gnupg');
     private building = false;
-    private riotSigningKeyContainer: string;
 
     constructor(
         targets: Target[],
@@ -69,13 +65,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
 
         introLogger.info("Using gnupg homedir " + this.gnupgDir);
 
-        // get the token passphrase now so a) we fail early if it's not in the keychain
-        // and b) we know the keychain is unlocked because someone's sitting at the
-        // computer to start the builder.
-        // NB. We supply the passphrase via a barely-documented feature of signtool
-        // where it can parse it out of the name of the key container, so this
-        // is actually the key container in the format [{{passphrase}}]=container
-        this.riotSigningKeyContainer = await getSecret('riot_key_container');
+        await this.loadSigningKeyContainer();
 
         if (this.building) return;
 
@@ -261,17 +251,15 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         await rm(repoDir);
     }
 
-    private makeMacRunner(cwd: string, logger: Logger): IRunner {
-        return new Runner(cwd, logger, {
+    protected getBuildEnv(): NodeJS.ProcessEnv {
+        return {
+            ...super.getBuildEnv(),
             GNUPGHOME: 'gnupg',
-        });
+        };
     }
 
-    private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
-        const wrapper = path.join('scripts', 'in-docker.sh');
-        return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-release", logger, {
-            GNUPGHOME: 'gnupg',
-        });
+    protected getDockerImageName(): string {
+        return "element-desktop-dockerbuild-release";
     }
 
     private async buildWithRunner(
@@ -326,18 +314,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
 
         await this.copyGnupgDir(repoDir, logger);
 
-        const builder = new WindowsBuilder(
-            repoDir,
-            target,
-            this.winVmName,
-            this.winUsername,
-            this.winPassword,
-            this.riotSigningKeyContainer,
-            logger,
-            {
-                GNUPGHOME: 'gnupg',
-            },
-        );
+        const builder = this.makeWindowsBuilder(repoDir, target, logger);
 
         logger.info("Starting Windows builder for " + target.id + '...');
         await builder.start();

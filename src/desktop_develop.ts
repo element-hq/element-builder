@@ -18,11 +18,9 @@ import { promises as fsProm } from 'fs';
 import * as path from 'path';
 import { Target, TargetId, UniversalTarget, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
-import getSecret from './get_secret';
 import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
-import Runner, { IRunner } from './runner';
-import DockerRunner from './docker_runner';
+import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
@@ -89,7 +87,6 @@ async function pruneBuilds(dir: string, exp: RegExp, logger: Logger): Promise<vo
 export default class DesktopDevelopBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'nightly');
     private building = false;
-    private riotSigningKeyContainer: string;
     private lastBuildTimes: Partial<Record<TargetId, number>> = {};
     private lastFailTimes: Partial<Record<TargetId, number>> = {};
 
@@ -99,14 +96,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         this.building = false;
 
         await WindowsBuilder.setDonglePower(false);
-
-        // get the token passphrase now so a) we fail early if it's not in the keychain
-        // and b) we know the keychain is unlocked because someone's sitting at the
-        // computer to start the builder.
-        // NB. We supply the passphrase via a barely-documented feature of signtool
-        // where it can parse it out of the name of the key container, so this
-        // is actually the key container in the format [{{passphrase}}]=container
-        this.riotSigningKeyContainer = await getSecret('riot_key_container');
+        await this.loadSigningKeyContainer();
 
         this.lastBuildTimes = {};
         this.lastFailTimes = {};
@@ -301,16 +291,16 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         await rm(repoDir);
     }
 
-    private makeMacRunner(cwd: string, logger: Logger): IRunner {
-        return new Runner(cwd, logger);
-    }
-
-    private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
-        const wrapper = path.join('scripts', 'in-docker.sh');
-        return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-develop", logger, {
+    protected getBuildEnv(): NodeJS.ProcessEnv {
+        return {
+            ...super.getBuildEnv(),
             // Develop build needs the buildkite api key to fetch the web build
             BUILDKITE_API_KEY: process.env['BUILDKITE_API_KEY'],
-        });
+        };
+    }
+
+    protected getDockerImageName(): string {
+        return "element-desktop-dockerbuild-develop";
     }
 
     private async buildWithRunner(
@@ -361,15 +351,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         //await fsProm.mkdir(repoDir);
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
 
-        const builder = new WindowsBuilder(
-            repoDir,
-            target,
-            this.winVmName,
-            this.winUsername,
-            this.winPassword,
-            this.riotSigningKeyContainer,
-            logger,
-        );
+        const builder = this.makeWindowsBuilder(repoDir, target, logger);
 
         logger.info("Starting Windows builder for " + target.id + '...');
         await builder.start();
