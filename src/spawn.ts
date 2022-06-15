@@ -30,7 +30,8 @@ export async function spawn(
             stdio: captureLog ? ["inherit", "pipe", "pipe"] : "inherit",
         });
 
-        let log = "";
+        let log = `# Running command "${command} ${args.join(" ")}"\n`;
+        console.log(log);
 
         if (captureLog) {
             proc.stdout.pipe(process.stdout);
