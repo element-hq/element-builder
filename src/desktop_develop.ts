@@ -424,7 +424,7 @@ export default class DesktopDevelopBuilder {
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', f),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', 'Element Nightly Setup.msi'),
                     logger,
                 );
             }
