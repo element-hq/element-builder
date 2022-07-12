@@ -427,13 +427,20 @@ export default class DesktopDevelopBuilder {
             const squirrelDir = 'squirrel-windows' + (target.arch === 'ia32' ? '-ia32' : '');
             const archDir = target.arch;
 
-            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir, 'msi'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
                 await copyAndLog(
                     path.join(repoDir, 'dist', squirrelDir, f),
                     path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Nightly Setup.exe'),
+                    logger,
+                );
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', f),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', 'Element Nightly Setup.msi'),
                     logger,
                 );
             }
