@@ -42,24 +42,32 @@ function getNextBuildTime(d: Date): Date {
     return next;
 }
 
-async function getLastBuildTime(target: Target, logger: Logger): Promise<number> {
+interface IBuild {
+    time: number;
+    number: number;
+}
+
+async function getLastBuild(target: Target, logger: Logger): Promise<IBuild> {
     try {
-        return parseInt(await fsProm.readFile('desktop_develop_lastBuilt_' + target.id, 'utf8'));
+        return JSON.parse(await fsProm.readFile('desktop_develop_lastBuilt_' + target.id, 'utf8'));
     } catch (e) {
         logger.error(`Unable to read last build time for ${target.id}`, e);
-        return 0;
+        return {
+            time: 0,
+            number: 0,
+        };
     }
 }
 
-async function putLastBuildTime(target: Target, t: number, logger: Logger): Promise<void> {
+async function putLastBuild(target: Target, build: IBuild, logger: Logger): Promise<void> {
     try {
-        await fsProm.writeFile('desktop_develop_lastBuilt_' + target.id, t.toString());
+        await fsProm.writeFile('desktop_develop_lastBuilt_' + target.id, JSON.stringify(build));
     } catch (e) {
         logger.error(`Unable to write last build time for ${target.id}`, e);
     }
 }
 
-function getBuildVersion(): string {
+function getBuildVersion(lastBuild: IBuild): [version: string, number: number] {
     // YYYYMMDDNN where NN is in case we need to do multiple versions in a day
     // NB. on windows, squirrel will try to parse the versiopn number parts,
     // including this string, into 32 bit integers, which is fine as long
@@ -67,8 +75,12 @@ function getBuildVersion(): string {
     const now = new Date();
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const date = now.getDate().toString().padStart(2, '0');
-    const buildNum = '01';
-    return now.getFullYear() + month + date + buildNum;
+    let buildNum = 1;
+    if (new Date(lastBuild.time).getDate().toString().padStart(2, '0') === date) {
+        buildNum = lastBuild.number + 1;
+    }
+
+    return [now.getFullYear() + month + date + buildNum.toString().padStart(2, '0'), buildNum];
 }
 
 async function pruneBuilds(dir: string, exp: RegExp, logger: Logger): Promise<void> {
@@ -86,8 +98,19 @@ async function pruneBuilds(dir: string, exp: RegExp, logger: Logger): Promise<vo
 export default class DesktopDevelopBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'nightly');
     private building = false;
-    private lastBuildTimes: Partial<Record<TargetId, number>> = {};
+    private lastBuildTimes: Partial<Record<TargetId, IBuild>> = {};
     private lastFailTimes: Partial<Record<TargetId, number>> = {};
+
+    constructor(
+        targets: Target[],
+        winVmName: string,
+        winUsername: string,
+        winPassword: string,
+        rsyncRoot: string,
+        private force = false,
+    ) {
+        super(targets, winVmName, winUsername, winPassword, rsyncRoot);
+    }
 
     public async start(): Promise<void> {
         rootLogger.info("Starting Element Desktop nightly builder...");
@@ -100,7 +123,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         this.lastBuildTimes = {};
         this.lastFailTimes = {};
         for (const target of this.targets) {
-            this.lastBuildTimes[target.id] = await getLastBuildTime(target, logger);
+            this.lastBuildTimes[target.id] = await getLastBuild(target, logger);
             this.lastFailTimes[target.id] = 0;
         }
 
@@ -114,13 +137,15 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         const toBuild: Target[] = [];
         for (const target of this.targets) {
             const nextBuildDue = getNextBuildTime(new Date(Math.max(
-                this.lastBuildTimes[target.id], this.lastFailTimes[target.id],
+                this.lastBuildTimes[target.id].time,
+                this.lastFailTimes[target.id],
             )));
             //logger.debug("Next build due at " + nextBuildDue);
-            if (nextBuildDue.getTime() < Date.now()) {
+            if (this.force || (nextBuildDue.getTime() < Date.now())) {
                 toBuild.push(target);
             }
         }
+        this.force = false; // clear force flag
 
         if (toBuild.length === 0) return;
 
@@ -132,10 +157,11 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
                 const jobReactionLogger = rootLogger.reactionLogger();
                 const logger = rootLogger.threadLogger();
                 try {
-                    const thisBuildVersion = getBuildVersion();
+                    const [thisBuildVersion, buildNumber] = getBuildVersion(this.lastBuildTimes[target.id]);
                     await this.build(target, thisBuildVersion, logger);
-                    this.lastBuildTimes[target.id] = Date.now();
-                    await putLastBuildTime(target, this.lastBuildTimes[target.id], logger);
+                    this.lastBuildTimes[target.id].time = Date.now();
+                    this.lastBuildTimes[target.id].number = buildNumber;
+                    await putLastBuild(target, this.lastBuildTimes[target.id], logger);
                     jobReactionLogger.info("✅ Done!");
                 } catch (e) {
                     logger.error("Build failed!", e);
@@ -309,7 +335,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             const squirrelDir = 'squirrel-windows' + (target.arch === 'ia32' ? '-ia32' : '');
             const archDir = target.arch;
 
-            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir, 'msi'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
             const distDir = path.join(repoDir, 'dist', squirrelDir);
@@ -318,6 +344,13 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
                 await copyAndLog(
                     path.join(distDir, f),
                     path.join(targetDir, 'Element Nightly Setup.exe'),
+                    logger,
+                );
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', f),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', 'Element Nightly Setup.msi'),
                     logger,
                 );
             }

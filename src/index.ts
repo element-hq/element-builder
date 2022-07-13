@@ -55,14 +55,23 @@ if (rsyncServer === undefined) {
 
 // For a release build, this is the tag / branch of element-desktop to build from.
 let desktopBranch: string = null;
+let force = false;
 
 while (process.argv.length > 2) {
     switch (process.argv[2]) {
+        // Specifies the release version (branch/tag) to build
         case '--version':
         case '-v':
             process.argv.shift();
             desktopBranch = process.argv[2];
             break;
+
+        // Force a build, currently only supported for Nightlies, creates a new one with an incremented version
+        case '--force':
+        case '-f':
+            force = true;
+            break;
+
         default:
             console.error(`Unknown option ${process.argv[2]}`);
             process.exit(1);
@@ -83,6 +92,6 @@ let builder: DesktopBuilder;
 if (desktopBranch) {
     builder = new DesktopReleaseBuilder(targets, winVmName, winUsername, winPassword, rsyncServer, desktopBranch);
 } else {
-    builder = new DesktopDevelopBuilder(targets, winVmName, winUsername, winPassword, rsyncServer);
+    builder = new DesktopDevelopBuilder(targets, winVmName, winUsername, winPassword, rsyncServer, force);
 }
 builder.start();

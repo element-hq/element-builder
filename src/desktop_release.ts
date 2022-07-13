@@ -260,7 +260,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             const squirrelDir = 'squirrel-windows' + (target.arch === 'ia32' ? '-ia32' : '');
             const archDir = target.arch;
 
-            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir), { recursive: true });
+            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir, 'msi'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
             const distDir = path.join(repoDir, 'dist', squirrelDir);
@@ -274,6 +274,13 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
                 await updateSymlink(f, latestInstallPath, logger);
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', f),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', f),
+                    logger,
+                );
             }
             await copyMatchingFiles(distDir, targetDir, /\.nupkg$/, logger);
             await copyMatchingFiles(distDir, targetDir, /^RELEASES$/, logger);
