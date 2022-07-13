@@ -46,7 +46,31 @@ export function copyAndLog(src: string, dest: string, logger: Logger): Promise<v
     return fsProm.copyFile(src, dest);
 }
 
-export async function copyMatchingFiles(sourceDir: string, targetDir, exp: RegExp, logger: Logger): Promise<void> {
+export async function copyMatchingFile(
+    sourceDir: string,
+    targetDir: string,
+    exp: RegExp,
+    logger: Logger,
+    overrideFileName?: string,
+): Promise<void> {
+    const matches = await getMatchingFilesInDir(sourceDir, exp);
+    if (matches.length !== 1) {
+        throw new Error("Expected 1 file, found " + matches.length);
+    }
+
+    await copyAndLog(
+        path.join(sourceDir, matches[0]),
+        path.join(targetDir, overrideFileName ?? matches[0]),
+        logger,
+    );
+}
+
+export async function copyMatchingFiles(
+    sourceDir: string,
+    targetDir: string,
+    exp: RegExp,
+    logger: Logger,
+): Promise<void> {
     for (const f of await getMatchingFilesInDir(sourceDir, exp)) {
         await copyAndLog(
             path.join(sourceDir, f),

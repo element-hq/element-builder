@@ -22,7 +22,7 @@ import rootLogger, { LoggableError, Logger } from './logger';
 import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm, copyMatchingFiles } from './artifacts';
+import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm, copyMatchingFiles, copyMatchingFile } from './artifacts';
 import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE, Package, PackageBuild } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
@@ -338,24 +338,25 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir, 'msi'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
-            const distDir = path.join(repoDir, 'dist', squirrelDir);
-            const targetDir = path.join(this.appPubDir, 'install', 'win32', archDir);
-            for (const f of await getMatchingFilesInDir(distDir, /\.exe$/)) {
+            const distPath = path.join(repoDir, 'dist');
+            const squirrelPath = path.join(distPath, squirrelDir);
+            const targetPath = path.join(this.appPubDir, 'install', 'win32', archDir);
+            for (const f of await getMatchingFilesInDir(squirrelPath, /\.exe$/)) {
                 await copyAndLog(
-                    path.join(distDir, f),
-                    path.join(targetDir, 'Element Nightly Setup.exe'),
+                    path.join(squirrelPath, f),
+                    path.join(targetPath, 'Element Nightly Setup.exe'),
                     logger,
                 );
             }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', 'Element Nightly Setup.msi'),
-                    logger,
-                );
-            }
-            await copyMatchingFiles(distDir, targetDir, /\.nupkg$/, logger);
-            await copyMatchingFiles(distDir, targetDir, /^RELEASES$/, logger);
+            await copyMatchingFile(
+                distPath,
+                path.join(targetPath, 'msi'),
+                /\.msi$/,
+                logger,
+                'Element Nightly Setup.msi',
+            );
+            await copyMatchingFiles(squirrelPath, targetPath, /\.nupkg$/, logger);
+            await copyMatchingFiles(squirrelPath, targetPath, /^RELEASES$/, logger);
 
             // prune update packages (installers are overwritten each time)
             await pruneBuilds(path.join(this.appPubDir, 'update', 'win32', archDir), /\.nupkg$/, logger);

@@ -21,7 +21,15 @@ import { Target, WindowsTarget } from 'element-desktop/scripts/hak/target';
 import rootLogger, { LoggableError, Logger } from './logger';
 import { IRunner } from './runner';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm, copyMatchingFiles, updateSymlink } from './artifacts';
+import {
+    getMatchingFilesInDir,
+    pushArtifacts,
+    copyAndLog,
+    rm,
+    copyMatchingFiles,
+    updateSymlink,
+    copyMatchingFile
+} from './artifacts';
 import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
 
 export default class DesktopReleaseBuilder extends DesktopBuilder {
@@ -263,27 +271,22 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir, 'msi'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
-            const distDir = path.join(repoDir, 'dist', squirrelDir);
-            const targetDir = path.join(this.appPubDir, 'install', 'win32', archDir);
-            for (const f of await getMatchingFilesInDir(distDir, /\.exe$/)) {
+            const distPath = path.join(repoDir, 'dist');
+            const squirrelPath = path.join(distPath, squirrelDir);
+            const targetPath = path.join(this.appPubDir, 'install', 'win32', archDir);
+            for (const f of await getMatchingFilesInDir(squirrelPath, /\.exe$/)) {
                 await copyAndLog(
-                    path.join(distDir, f),
-                    path.join(targetDir, f),
+                    path.join(squirrelPath, f),
+                    path.join(targetPath, f),
                     logger,
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
                 await updateSymlink(f, latestInstallPath, logger);
             }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', f),
-                    logger,
-                );
-            }
-            await copyMatchingFiles(distDir, targetDir, /\.nupkg$/, logger);
-            await copyMatchingFiles(distDir, targetDir, /^RELEASES$/, logger);
+            await copyMatchingFile(distPath, path.join(targetPath, 'msi'), /\.msi$/, logger);
+            await copyMatchingFiles(squirrelPath, targetPath, /\.nupkg$/, logger);
+            await copyMatchingFiles(squirrelPath, targetPath, /^RELEASES$/, logger);
         } finally {
             await builder.stop();
         }
