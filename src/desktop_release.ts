@@ -31,7 +31,6 @@ import {
     copyMatchingFile,
 } from './artifacts';
 import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
-import { log } from "util";
 
 export default class DesktopReleaseBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'desktop');
