@@ -28,7 +28,7 @@ import {
     rm,
     copyMatchingFiles,
     updateSymlink,
-    copyMatchingFile
+    copyMatchingFile,
 } from './artifacts';
 import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
 
