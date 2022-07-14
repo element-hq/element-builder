@@ -22,7 +22,7 @@ import rootLogger, { LoggableError, Logger } from './logger';
 import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm, copyMatchingFiles, copyMatchingFile } from './artifacts';
+import { getMatchingFilesInDir, pushArtifacts, rm, copyMatchingFiles, copyMatchingFile } from './artifacts';
 import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE, Package, PackageBuild } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
@@ -255,17 +255,11 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
-            const distDir = path.join(repoDir, 'dist');
-            const targetDir = path.join(this.appPubDir, 'install', 'macos');
-            for (const f of await getMatchingFilesInDir(distDir, /\.dmg$/)) {
-                await copyAndLog(
-                    path.join(distDir, f),
-                    // Be consistent with windows and don't bother putting the version number in the installer
-                    path.join(targetDir, 'Element Nightly.dmg'),
-                    logger,
-                );
-            }
-            await copyMatchingFiles(distDir, targetDir, /-mac.zip$/, logger);
+            const distPath = path.join(repoDir, 'dist');
+            const targetPath = path.join(this.appPubDir, 'install', 'macos');
+            // Be consistent with windows and don't bother putting the version number in the installer
+            await copyMatchingFile(distPath, targetPath, /\.dmg$/, logger, 'Element Nightly.dmg');
+            await copyMatchingFiles(distPath, targetPath, /-mac.zip$/, logger);
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
@@ -341,13 +335,13 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             const distPath = path.join(repoDir, 'dist');
             const squirrelPath = path.join(distPath, squirrelDir);
             const targetPath = path.join(this.appPubDir, 'install', 'win32', archDir);
-            for (const f of await getMatchingFilesInDir(squirrelPath, /\.exe$/)) {
-                await copyAndLog(
-                    path.join(squirrelPath, f),
-                    path.join(targetPath, 'Element Nightly Setup.exe'),
-                    logger,
-                );
-            }
+            await copyMatchingFile(
+                squirrelPath,
+                targetPath,
+                /\.exe$/,
+                logger,
+                'Element Nightly Setup.exe',
+            );
             await copyMatchingFile(
                 distPath,
                 path.join(targetPath, 'msi'),

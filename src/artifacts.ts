@@ -52,7 +52,7 @@ export async function copyMatchingFile(
     exp: RegExp,
     logger: Logger,
     overrideFileName?: string,
-): Promise<void> {
+): Promise<string> {
     const matches = await getMatchingFilesInDir(sourceDir, exp);
     if (matches.length !== 1) {
         throw new Error("Expected 1 file, found " + matches.length);
@@ -63,6 +63,7 @@ export async function copyMatchingFile(
         path.join(targetDir, overrideFileName ?? matches[0]),
         logger,
     );
+    return matches[0];
 }
 
 export async function copyMatchingFiles(
