@@ -72,13 +72,8 @@ export async function copyMatchingFiles(
     exp: RegExp,
     logger: Logger,
 ): Promise<void> {
-    for (const f of await getMatchingFilesInDir(sourceDir, exp)) {
-        await copyAndLog(
-            path.join(sourceDir, f),
-            path.join(targetDir, f),
-            logger,
-        );
-    }
+    const files = await getMatchingFilesInDir(sourceDir, exp);
+    await Promise.all(files.map(f => copyAndLog(path.join(sourceDir, f), path.join(targetDir, f), logger)));
 }
 
 export function rm(path: string): Promise<void> {
@@ -90,7 +85,7 @@ export function rm(path: string): Promise<void> {
 }
 
 export async function updateSymlink(target: string, symlink: string, logger: Logger): Promise<void> {
-    logger.info('Update latest symlink ' + symlink + ' -> ' + target);
+    logger.info(`Update latest symlink ${symlink} -> ${target}`);
     try {
         await fsProm.unlink(symlink);
     } catch (e) {

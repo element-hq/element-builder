@@ -163,7 +163,7 @@ export default abstract class DesktopBuilder {
         buildVersion: string,
     ): Promise<void> {
         // Electron builder doesn't overlay with the config in package.json, so load it here
-        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8'));
+        const pkg: Package = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8'));
 
         const cfg = this.getElectronBuilderConfig(pkg, target, buildVersion);
         if (target.platform === "linux") {
@@ -187,14 +187,15 @@ export default abstract class DesktopBuilder {
     ): Promise<void> {
         await runner.run('yarn', 'install');
         if (target.arch == 'universal') {
-            for (const subTarget of (target as UniversalTarget).subtargets) {
+            const subtargets = (target as UniversalTarget).subtargets;
+            for (const subTarget of subtargets) {
                 await runner.run('yarn', 'run', 'hak', 'check', '--target', subTarget.id);
             }
-            for (const subTarget of (target as UniversalTarget).subtargets) {
+            for (const subTarget of subtargets) {
                 await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
             }
             const targetArgs = [];
-            for (const st of (target as UniversalTarget).subtargets) {
+            for (const st of subtargets) {
                 targetArgs.push('--target');
                 targetArgs.push(st.id);
             }
@@ -218,7 +219,7 @@ export default abstract class DesktopBuilder {
         if (target.platform === "win32") {
             // We're now running into Window's 260 character path limit. Adding a step of 'faff about in the registry
             // enabling NTFS long paths' to the list of things to do when setting up a build box seems undesirable:
-            // this is an easy place to save some characters: abbreviate element-desktop, omit the hyphens  and just use
+            // this is an easy place to save some characters: abbreviate element-desktop, omit the hyphens and just use
             // the arch (because, at least at the moment, the only vaguely supported variations on Windows is the arch).
             buildDirName = `ed${target.arch}${buildVersion}`;
         }
