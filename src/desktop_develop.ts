@@ -16,19 +16,15 @@ limitations under the License.
 
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
-import { Target, TargetId, UniversalTarget, WindowsTarget } from 'element-desktop/scripts/hak/target';
+import { Target, TargetId, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
-import getSecret from './get_secret';
-import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
-import Runner, { IRunner } from './runner';
-import DockerRunner from './docker_runner';
+import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
+import { getMatchingFilesInDir, pushArtifacts, rm, copyMatchingFiles, copyMatchingFile } from './artifacts';
+import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE, Package, PackageBuild } from "./desktop_builder";
 
-const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
-const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
 // take a date object and advance it to 9am the next morning
@@ -99,25 +95,22 @@ async function pruneBuilds(dir: string, exp: RegExp, logger: Logger): Promise<vo
     }
 }
 
-export default class DesktopDevelopBuilder {
-    private pubDir = path.join(process.cwd(), 'packages.riot.im');
-    // This should be a reprepro dir with a config redirecting
-    // the output to pub/debian
-    private debDir = path.join(process.cwd(), 'debian');
+export default class DesktopDevelopBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'nightly');
     private building = false;
-    private riotSigningKeyContainer: string;
     private lastBuildTimes: Partial<Record<TargetId, IBuild>> = {};
     private lastFailTimes: Partial<Record<TargetId, number>> = {};
 
     constructor(
-        private readonly targets: Target[],
-        private winVmName: string,
-        private winUsername: string,
-        private winPassword: string,
-        private rsyncRoot: string,
+        targets: Target[],
+        winVmName: string,
+        winUsername: string,
+        winPassword: string,
+        rsyncRoot: string,
         private force = false,
-    ) { }
+    ) {
+        super(targets, winVmName, winUsername, winPassword, rsyncRoot);
+    }
 
     public async start(): Promise<void> {
         rootLogger.info("Starting Element Desktop nightly builder...");
@@ -125,14 +118,7 @@ export default class DesktopDevelopBuilder {
         this.building = false;
 
         await WindowsBuilder.setDonglePower(false);
-
-        // get the token passphrase now so a) we fail early if it's not in the keychain
-        // and b) we know the keychain is unlocked because someone's sitting at the
-        // computer to start the builder.
-        // NB. We supply the passphrase via a barely-documented feature of signtool
-        // where it can parse it out of the name of the key container, so this
-        // is actually the key container in the format [{{passphrase}}]=container
-        this.riotSigningKeyContainer = await getSecret('riot_key_container');
+        await this.loadSigningKeyContainer();
 
         this.lastBuildTimes = {};
         this.lastFailTimes = {};
@@ -207,47 +193,25 @@ export default class DesktopDevelopBuilder {
         }
     };
 
-    private async writeElectronBuilderConfigFile(
-        target: Target,
-        repoDir: string,
-        buildVersion: string,
-    ): Promise<void> {
-        // Electron builder doesn't overlay with the config in package.json,
-        // so load it here
-        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8'));
-        const cfg = pkg.build;
-
-        // Electron crashes on debian if there's a space in the path.
-        // https://github.com/vector-im/element-web/issues/13171
-        const productName = target.platform === 'linux' ? 'Element-Nightly' : 'Element Nightly';
-
-        // the windows packager relies on parsing this as semver, so we have
-        // to make it look like one. This will give our update packages really
-        // stupid names but we probably can't change that either because squirrel
-        // windows parses them for the version too. We don't really care: nobody
-        // sees them. We just give the installer a static name, so you'll just
-        // see this in the 'about' dialog.
+    protected getElectronBuilderConfig(pkg: Package, target: Target, buildVersion: string): PackageBuild {
+        // The windows packager relies on parsing this as semver, so we have to make it look like one.
+        // This will give our update packages really stupid names, but we probably can't change that either
+        // because squirrel windows parses them for the version too. We don't really care: nobody  sees them.
+        // We just give the installer a static name, so you'll just see this in the 'about' dialog.
         // Turns out if you use 0.0.0 here it makes Squirrel windows crash, so we use 0.0.1.
         const version = target.platform === 'win32' ? '0.0.1-nightly.' + buildVersion : buildVersion;
 
-        Object.assign(cfg, {
+        const cfg = super.getElectronBuilderConfig(pkg, target, buildVersion);
+        return {
+            ...cfg,
             // We override a lot of the metadata for the nightly build
             extraMetadata: {
+                ...cfg.extraMetadata,
                 name: "element-desktop-nightly",
-                productName,
                 version,
             },
             appId: "im.riot.nightly",
-            deb: {
-                fpm: [
-                    "--deb-custom-control=debcontrol",
-                ],
-            },
-        });
-        await fsProm.writeFile(
-            path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
-            JSON.stringify(cfg, null, 4),
-        );
+        };
     }
 
     private async build(target: Target, buildVersion: string, logger: Logger): Promise<void> {
@@ -259,13 +223,7 @@ export default class DesktopDevelopBuilder {
     }
 
     private async buildLocal(target: Target, buildVersion: string, logger: Logger): Promise<void> {
-        await fsProm.mkdir('builds', { recursive: true });
-        const repoDir = path.join('builds', 'element-desktop-' + target.id + '-' + buildVersion);
-        await rm(repoDir);
-        logger.info("Cloning element-desktop into " + repoDir);
-        const repo = new GitRepo(repoDir);
-        await repo.clone(DESKTOP_GIT_REPO, repoDir);
-        logger.info("...checked out 'develop' branch, starting build for " + target.id);
+        const { repoDir } = await this.cloneRepo(target, buildVersion, logger);
 
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
         if (target.platform === 'linux') {
@@ -297,22 +255,11 @@ export default class DesktopDevelopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    // be consistent with windows and don't bother putting the version number
-                    // in the installer
-                    path.join(this.appPubDir, 'install', 'macos', 'Element Nightly.dmg'),
-                    logger,
-                );
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'update', 'macos', f),
-                    logger,
-                );
-            }
+            const distPath = path.join(repoDir, 'dist');
+            const targetPath = path.join(this.appPubDir, 'install', 'macos');
+            // Be consistent with windows and don't bother putting the version number in the installer
+            await copyMatchingFile(distPath, targetPath, /\.dmg$/, logger, 'Element Nightly.dmg');
+            await copyMatchingFiles(distPath, targetPath, /-mac.zip$/, logger);
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
@@ -330,75 +277,30 @@ export default class DesktopDevelopBuilder {
         await rm(repoDir);
     }
 
-    private makeMacRunner(cwd: string, logger: Logger): IRunner {
-        return new Runner(cwd, logger);
-    }
-
-    private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
-        const wrapper = path.join('scripts', 'in-docker.sh');
-        return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-develop", logger, {
+    protected getBuildEnv(): NodeJS.ProcessEnv {
+        return {
+            ...super.getBuildEnv(),
             // Develop build needs the buildkite api key to fetch the web build
-            INDOCKER_BUILDKITE_API_KEY: process.env['BUILDKITE_API_KEY'],
-        });
+            BUILDKITE_API_KEY: process.env['BUILDKITE_API_KEY'],
+        };
     }
 
-    private async buildWithRunner(
-        runner: IRunner,
-        buildVersion: string,
-        target: Target,
-    ): Promise<void> {
-        await runner.run('yarn', 'install');
-        if (target.arch == 'universal') {
-            for (const subTarget of (target as UniversalTarget).subtargets) {
-                await runner.run('yarn', 'run', 'hak', 'check', '--target', subTarget.id);
-            }
-            for (const subTarget of (target as UniversalTarget).subtargets) {
-                await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
-            }
-            const targetArgs = [];
-            for (const st of (target as UniversalTarget).subtargets) {
-                targetArgs.push('--target');
-                targetArgs.push(st.id);
-            }
-            await runner.run('yarn', 'run', 'hak', 'copy', ...targetArgs);
-        } else {
-            await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
-            await runner.run('yarn', 'run', 'build:native', '--target', target.id);
-        }
-        await runner.run('yarn', 'run', 'fetch', 'develop', '-d', 'element.io/nightly');
-        await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
+    protected getDockerImageName(): string {
+        return "element-desktop-dockerbuild-develop";
+    }
+
+    protected fetchArgs(): string[] {
+        return ["develop", "-d", "element.io/nightly"];
     }
 
     private async buildWin(target: WindowsTarget, buildVersion: string, logger: Logger): Promise<void> {
-        await fsProm.mkdir('builds', { recursive: true });
-        // We're now running into Window's 260 character path limit. Adding a step
-        // of 'faff about in the registry enabling NTFS long paths' to the list of
-        // things to do when setting up a build box seems undesirable: this is an easy
-        // place to save some characters: abbreviate element-desktop, omit the hyphens
-        // and just use the arch (becuse, at least at the moment, the only vaguely
-        // supported variations on windows is the arch).
-        //const buildDirName = 'element-desktop-' + target.id + '-' + buildVersion;
-        const buildDirName = 'ed' + target.arch + buildVersion;
-        const repoDir = path.join('builds', buildDirName);
-        await rm(repoDir);
+        // We still check out the repo locally because we need package.json to write the electron builder config file,
+        // so we check out the repo twice for windows: once locally and once on the VM...
+        const { repoDir, buildDirName } = await this.cloneRepo(target, buildVersion, logger);
 
-        // we still check out the repo locally because we need package.json
-        // to write the electron builder config file, so we check out the
-        // repo twice for windows: once locally and once on the VM...
-        const repo = new GitRepo(repoDir);
-        await repo.clone(DESKTOP_GIT_REPO, repoDir);
-        //await fsProm.mkdir(repoDir);
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
 
-        const builder = new WindowsBuilder(
-            repoDir,
-            target,
-            this.winVmName,
-            this.winUsername,
-            this.winPassword,
-            this.riotSigningKeyContainer,
-            logger,
-        );
+        const builder = this.makeWindowsBuilder(repoDir, target, logger);
 
         logger.info("Starting Windows builder for " + target.id + '...');
         await builder.start();
@@ -430,34 +332,25 @@ export default class DesktopDevelopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir, 'msi'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Nightly Setup.exe'),
-                    logger,
-                );
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', 'Element Nightly Setup.msi'),
-                    logger,
-                );
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
-                    logger,
-                );
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
-                    logger,
-                );
-            }
+            const distPath = path.join(repoDir, 'dist');
+            const squirrelPath = path.join(distPath, squirrelDir);
+            const targetPath = path.join(this.appPubDir, 'install', 'win32', archDir);
+            await copyMatchingFile(
+                squirrelPath,
+                targetPath,
+                /\.exe$/,
+                logger,
+                'Element Nightly Setup.exe',
+            );
+            await copyMatchingFile(
+                distPath,
+                path.join(targetPath, 'msi'),
+                /\.msi$/,
+                logger,
+                'Element Nightly Setup.msi',
+            );
+            await copyMatchingFiles(squirrelPath, targetPath, /\.nupkg$/, logger);
+            await copyMatchingFiles(squirrelPath, targetPath, /^RELEASES$/, logger);
 
             // prune update packages (installers are overwritten each time)
             await pruneBuilds(path.join(this.appPubDir, 'update', 'win32', archDir), /\.nupkg$/, logger);

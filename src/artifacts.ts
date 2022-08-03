@@ -15,13 +15,14 @@ limitations under the License.
 */
 
 import { promises as fsProm } from 'fs';
+import * as path from "path";
 import * as rimraf from 'rimraf';
 
 import { Logger } from './logger';
 import { spawn } from "./spawn";
 
 export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<string[]> {
-    const ret = [];
+    const ret: string[] = [];
     for (const f of await fsProm.readdir(dir)) {
         if (exp.test(f)) {
             ret.push(f);
@@ -45,10 +46,51 @@ export function copyAndLog(src: string, dest: string, logger: Logger): Promise<v
     return fsProm.copyFile(src, dest);
 }
 
+export async function copyMatchingFile(
+    sourceDir: string,
+    targetDir: string,
+    exp: RegExp,
+    logger: Logger,
+    overrideFileName?: string,
+): Promise<string> {
+    const matches = await getMatchingFilesInDir(sourceDir, exp);
+    if (matches.length !== 1) {
+        throw new Error("Expected 1 file, found " + matches.length);
+    }
+
+    await copyAndLog(
+        path.join(sourceDir, matches[0]),
+        path.join(targetDir, overrideFileName ?? matches[0]),
+        logger,
+    );
+    return matches[0];
+}
+
+export async function copyMatchingFiles(
+    sourceDir: string,
+    targetDir: string,
+    exp: RegExp,
+    logger: Logger,
+): Promise<void> {
+    const files = await getMatchingFilesInDir(sourceDir, exp);
+    await Promise.all(files.map(f => copyAndLog(path.join(sourceDir, f), path.join(targetDir, f), logger)));
+}
+
 export function rm(path: string): Promise<void> {
     return new Promise((resolve, reject) => {
         rimraf(path, (err) => {
             err ? reject(err) : resolve();
         });
     });
+}
+
+export async function updateSymlink(target: string, symlink: string, logger: Logger): Promise<void> {
+    logger.info(`Update latest symlink ${symlink} -> ${target}`);
+    try {
+        await fsProm.unlink(symlink);
+    } catch (e) {
+        // probably just didn't exist
+        logger.info("Failed to remove latest symlink", e);
+    }
+    await fsProm.symlink(target, symlink, 'file');
 }
