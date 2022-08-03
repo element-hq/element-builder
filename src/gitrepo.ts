@@ -37,6 +37,14 @@ export default class GitRepo {
         });
     }
 
+    public checkout(...args): Promise<string> {
+        return this.gitCmd('checkout', ...args);
+    }
+
+    public getHeadRev(): Promise<string> {
+        return this.gitCmd('rev-parse', 'HEAD');
+    }
+
     private gitCmd(cmd: string, ...args): Promise<string> {
         return new Promise((resolve, reject) => {
             childProcess.execFile('git', [cmd, ...args], {
