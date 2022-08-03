@@ -23,7 +23,7 @@ import { Logger } from "./logger";
 import { spawn } from "./spawn";
 
 const STARTVM_TIMEOUT = 90 * 1000;
-const POWEROFF_TIMEOUT = 30 * 1000;
+const POWEROFF_TIMEOUT = 20 * 1000;
 
 // You could install Visual Studio to a different location but not worrying about
 // that for now.
@@ -190,7 +190,8 @@ export default class WindowsBuilder {
         }, 60 * 1000);
 
         try {
-            return await this.run('z:\\tmp.cmd');
+            const ret = await this.run('z:\\tmp.cmd');
+            return ret;
         } finally {
             clearInterval(timer);
             await fsProm.unlink(tmpCmdFile);

@@ -16,37 +16,38 @@ limitations under the License.
 
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
-import { Target, WindowsTarget } from 'element-desktop/scripts/hak/target';
+import { Target, UniversalTarget, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
+import getSecret from './get_secret';
+import GitRepo from './gitrepo';
 import rootLogger, { LoggableError, Logger } from './logger';
-import { IRunner } from './runner';
+import Runner, { IRunner } from './runner';
+import DockerRunner from './docker_runner';
+import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import {
-    getMatchingFilesInDir,
-    pushArtifacts,
-    copyAndLog,
-    rm,
-    copyMatchingFiles,
-    updateSymlink,
-    copyMatchingFile,
-} from './artifacts';
-import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE } from "./desktop_builder";
+import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
 
-export default class DesktopReleaseBuilder extends DesktopBuilder {
+const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
+const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
+
+export default class DesktopReleaseBuilder {
+    private pubDir = path.join(process.cwd(), 'packages.riot.im');
+    // This should be a reprepro dir with a config redirecting
+    // the output to pub/debian
+    private debDir = path.join(process.cwd(), 'debian');
     private appPubDir = path.join(this.pubDir, 'desktop');
     private gnupgDir = path.join(process.cwd(), 'gnupg');
     private building = false;
+    private riotSigningKeyContainer: string;
 
     constructor(
-        targets: Target[],
-        winVmName: string,
-        winUsername: string,
-        winPassword: string,
-        rsyncRoot: string,
-        private readonly desktopBranch: string,
-    ) {
-        super(targets, winVmName, winUsername, winPassword, rsyncRoot);
-    }
+        private readonly targets: Target[],
+        private winVmName: string,
+        private winUsername: string,
+        private winPassword: string,
+        private rsyncRoot: string,
+        private desktopBranch: string,
+    ) { }
 
     public async start(): Promise<void> {
         rootLogger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
@@ -72,7 +73,13 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
 
         introLogger.info("Using gnupg homedir " + this.gnupgDir);
 
-        await this.loadSigningKeyContainer();
+        // get the token passphrase now so a) we fail early if it's not in the keychain
+        // and b) we know the keychain is unlocked because someone's sitting at the
+        // computer to start the builder.
+        // NB. We supply the passphrase via a barely-documented feature of signtool
+        // where it can parse it out of the name of the key container, so this
+        // is actually the key container in the format [{{passphrase}}]=container
+        this.riotSigningKeyContainer = await getSecret('riot_key_container');
 
         if (this.building) return;
 
@@ -117,6 +124,36 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         }
     }
 
+    private async writeElectronBuilderConfigFile(
+        target: Target,
+        repoDir: string,
+        buildVersion: string,
+    ): Promise<void> {
+        // Electron builder doesn't overlay with the config in package.json,
+        // so load it here
+        const pkg = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8'));
+        const cfg = pkg.build;
+
+        // Electron crashes on debian if there's a space in the path.
+        // https://github.com/vector-im/element-web/issues/13171
+        const productName = target.platform === 'linux' ? 'Element' : pkg.productName;
+
+        Object.assign(cfg, {
+            extraMetadata: {
+                productName,
+            },
+            deb: {
+                fpm: [
+                    "--deb-custom-control=debcontrol",
+                ],
+            },
+        });
+        await fsProm.writeFile(
+            path.join(repoDir, ELECTRON_BUILDER_CFG_FILE),
+            JSON.stringify(cfg, null, 4),
+        );
+    }
+
     private async copyGnupgDir(repoDir: string, logger: Logger) {
         const dest = path.join(repoDir, 'gnupg');
         // We copy rather than symlink so an individual builder can't
@@ -126,8 +163,9 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         // copied, so just copy specific files.
         await fsProm.mkdir(dest);
 
-        // XXX: The docker image we use has gnupg 1 so uses pubring.gpg rather than pubring.kbx.
-        // If we use the old gpg format, that works with both.
+        // XXX: The docker image we use has gnupg 1 so uses
+        // pubring.gpg rather than pubring.kbx. If we use the
+        // old gpg format, that works with both.
         for (const f of ['pubring.gpg', 'trustdb.gpg']) {
             await copyAndLog(
                 path.join(this.gnupgDir, f),
@@ -146,7 +184,15 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
     }
 
     private async buildLocal(target: Target, logger: Logger): Promise<void> {
-        const { repoDir } = await this.cloneRepo(target, this.desktopBranch, logger, this.desktopBranch);
+        await fsProm.mkdir('builds', { recursive: true });
+        const repoDir = path.join('builds', 'element-desktop-' + target.id + '-' + this.desktopBranch);
+        await rm(repoDir);
+        logger.info("Cloning element-desktop into " + repoDir);
+        const repo = new GitRepo(repoDir);
+        // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
+        await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
+        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${target.id}`);
+
         const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8')).version;
 
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
@@ -181,13 +227,30 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
 
-            const distPath = path.join(repoDir, 'dist');
-            const targetPath = path.join(this.appPubDir, 'install', 'macos');
-            await copyMatchingFile(distPath, targetPath, /\.dmg$/, logger).then(async f => {
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', f),
+                    path.join(this.appPubDir, 'install', 'macos', f),
+                    logger,
+                );
+
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
-                await updateSymlink(f, latestInstallPath, logger);
-            });
-            await copyMatchingFiles(distPath, targetPath, /-mac.zip$/, logger);
+                logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
+                try {
+                    await fsProm.unlink(latestInstallPath);
+                } catch (e) {
+                    // probably just didn't exist
+                    logger.info("Failed to remove latest symlink", e);
+                }
+                await fsProm.symlink(f, latestInstallPath, 'file');
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', f),
+                    path.join(this.appPubDir, 'update', 'macos', f),
+                    logger,
+                );
+            }
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
@@ -202,26 +265,64 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         await rm(repoDir);
     }
 
-    protected getBuildEnv(): NodeJS.ProcessEnv {
-        return {
-            ...super.getBuildEnv(),
+    private makeMacRunner(cwd: string, logger: Logger): IRunner {
+        return new Runner(cwd, logger, {
             GNUPGHOME: 'gnupg',
-        };
+        });
     }
 
-    protected getDockerImageName(): string {
-        return "element-desktop-dockerbuild-release";
+    private makeLinuxRunner(cwd: string, logger: Logger): IRunner {
+        const wrapper = path.join('scripts', 'in-docker.sh');
+        return new DockerRunner(cwd, wrapper, "element-desktop-dockerbuild-release", logger, {
+            INDOCKER_GNUPGHOME: 'gnupg',
+        });
     }
 
-    protected fetchArgs(): string[] {
-        // This will fetch the Element release from GitHub that matches the version in element-desktop's package.json.
-        return ['-d', 'element.io/release'];
+    private async buildWithRunner(
+        runner: IRunner,
+        buildVersion: string,
+        target: Target,
+    ): Promise<void> {
+        await runner.run('yarn', 'install');
+        if (target.arch == 'universal') {
+            for (const subTarget of (target as UniversalTarget).subtargets) {
+                await runner.run('yarn', 'run', 'hak', 'check', '--target', subTarget.id);
+            }
+            for (const subTarget of (target as UniversalTarget).subtargets) {
+                await runner.run('yarn', 'run', 'build:native', '--target', subTarget.id);
+            }
+            const targetArgs = [];
+            for (const st of (target as UniversalTarget).subtargets) {
+                targetArgs.push('--target');
+                targetArgs.push(st.id);
+            }
+            await runner.run('yarn', 'run', 'hak', 'copy', ...targetArgs);
+        } else {
+            await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
+            await runner.run('yarn', 'run', 'build:native', '--target', target.id);
+        }
+        // This will fetch the Element release from GitHub that matches the version
+        // in element-desktop's package.json.
+        await runner.run('yarn', 'run', 'fetch', '-d', 'element.io/release');
+        await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
     }
 
     private async buildWin(target: WindowsTarget, logger: Logger): Promise<void> {
-        // We still check out the repo locally because we need package.json to write the electron builder config file,
-        // so we check out the repo twice for windows: once locally and once on the VM...
-        const { repoDir, buildDirName } = await this.cloneRepo(target, this.desktopBranch, logger, this.desktopBranch);
+        await fsProm.mkdir('builds', { recursive: true });
+        // Windows long paths (see desktop_develop.ts)
+        //const buildDirName = 'element-desktop-' + target.id + '-' + this.desktopBranch;
+        const buildDirName = 'ed' + target.arch + this.desktopBranch;
+        const repoDir = path.join('builds', buildDirName);
+        await rm(repoDir);
+
+        // we still check out the repo locally because we need package.json
+        // to write the electron builder config file, so we check out the
+        // repo twice for windows: once locally and once on the VM...
+        logger.info("Cloning element-desktop into " + repoDir);
+        const repo = new GitRepo(repoDir);
+        // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
+        await repo.clone(DESKTOP_GIT_REPO, repoDir, '-b', this.desktopBranch);
+        logger.info(`...checked out '${this.desktopBranch}' branch, starting build for ${target.id}`);
 
         const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8')).version;
 
@@ -229,7 +330,18 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
 
         await this.copyGnupgDir(repoDir, logger);
 
-        const builder = this.makeWindowsBuilder(repoDir, target, logger);
+        const builder = new WindowsBuilder(
+            repoDir,
+            target,
+            this.winVmName,
+            this.winUsername,
+            this.winPassword,
+            this.riotSigningKeyContainer,
+            logger,
+            {
+                GNUPGHOME: 'gnupg',
+            },
+        );
 
         logger.info("Starting Windows builder for " + target.id + '...');
         await builder.start();
@@ -265,16 +377,44 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir, 'msi'), { recursive: true });
             await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
 
-            const distPath = path.join(repoDir, 'dist');
-            const squirrelPath = path.join(distPath, squirrelDir);
-            const targetPath = path.join(this.appPubDir, 'install', 'win32', archDir);
-            await copyMatchingFile(distPath, targetPath, /\.exe$/, logger).then(async f => {
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', squirrelDir, f),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, f),
+                    logger,
+                );
+
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
-                await updateSymlink(f, latestInstallPath, logger);
-            });
-            await copyMatchingFile(distPath, path.join(targetPath, 'msi'), /\.msi$/, logger);
-            await copyMatchingFiles(squirrelPath, targetPath, /\.nupkg$/, logger);
-            await copyMatchingFiles(squirrelPath, targetPath, /^RELEASES$/, logger);
+                logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
+                try {
+                    await fsProm.unlink(latestInstallPath);
+                } catch (e) {
+                    // probably just didn't exist
+                    logger.info("Failed to remove latest symlink", e);
+                }
+                await fsProm.symlink(f, latestInstallPath, 'file');
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', f),
+                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', f),
+                    logger,
+                );
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', squirrelDir, f),
+                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
+                );
+            }
+            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
+                await copyAndLog(
+                    path.join(repoDir, 'dist', squirrelDir, f),
+                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
+                    logger,
+                );
+            }
         } finally {
             await builder.stop();
         }
