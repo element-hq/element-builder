@@ -52,3 +52,14 @@ export function rm(path: string): Promise<void> {
         });
     });
 }
+
+export async function updateSymlink(target: string, symlink: string, logger: Logger): Promise<void> {
+    logger.info(`Update latest symlink ${symlink} -> ${target}`);
+    try {
+        await fsProm.unlink(symlink);
+    } catch (e) {
+        // probably just didn't exist
+        logger.info("Failed to remove latest symlink", e);
+    }
+    await fsProm.symlink(target, symlink, 'file');
+}

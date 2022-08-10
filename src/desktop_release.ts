@@ -25,7 +25,7 @@ import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm } from './artifacts';
+import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm, updateSymlink } from './artifacts';
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -235,14 +235,7 @@ export default class DesktopReleaseBuilder {
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
-                logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
-                try {
-                    await fsProm.unlink(latestInstallPath);
-                } catch (e) {
-                    // probably just didn't exist
-                    logger.info("Failed to remove latest symlink", e);
-                }
-                await fsProm.symlink(f, latestInstallPath, 'file');
+                await updateSymlink(f, latestInstallPath, logger);
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
                 await copyAndLog(
@@ -385,14 +378,7 @@ export default class DesktopReleaseBuilder {
                 );
 
                 const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
-                logger.info('Update latest symlink ' + latestInstallPath + ' -> ' + f);
-                try {
-                    await fsProm.unlink(latestInstallPath);
-                } catch (e) {
-                    // probably just didn't exist
-                    logger.info("Failed to remove latest symlink", e);
-                }
-                await fsProm.symlink(f, latestInstallPath, 'file');
+                await updateSymlink(f, latestInstallPath, logger);
             }
             for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
                 await copyAndLog(
