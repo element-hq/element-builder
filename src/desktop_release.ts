@@ -25,7 +25,15 @@ import Runner, { IRunner } from './runner';
 import DockerRunner from './docker_runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyAndLog, rm, updateSymlink } from './artifacts';
+import {
+    getMatchingFilesInDir,
+    pushArtifacts,
+    copyAndLog,
+    rm,
+    updateSymlink,
+    copyMatchingFiles,
+    copyMatchingFile,
+} from './artifacts';
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -224,26 +232,16 @@ export default class DesktopReleaseBuilder {
         logger.info("Build completed!");
 
         if (target.platform === 'darwin') {
-            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'macos'), { recursive: true });
-            await fsProm.mkdir(path.join(this.appPubDir, 'update', 'macos'), { recursive: true });
+            const distPath = path.join(repoDir, 'dist');
+            const targetInstallPath = path.join(this.appPubDir, 'install', 'macos');
+            const targetUpdatePath = path.join(this.appPubDir, 'update', 'macos');
 
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.dmg$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'install', 'macos', f),
-                    logger,
-                );
+            await fsProm.mkdir(targetInstallPath, { recursive: true });
+            await fsProm.mkdir(targetUpdatePath, { recursive: true });
 
-                const latestInstallPath = path.join(this.appPubDir, 'install', 'macos', 'Element.dmg');
-                await updateSymlink(f, latestInstallPath, logger);
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /-mac.zip$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'update', 'macos', f),
-                    logger,
-                );
-            }
+            // Be consistent with windows and don't bother putting the version number in the installer
+            await copyMatchingFile(distPath, targetInstallPath, /\.dmg$/, logger, 'Element.dmg');
+            await copyMatchingFiles(distPath, targetUpdatePath, /-mac.zip$/, logger);
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
@@ -367,40 +365,20 @@ export default class DesktopReleaseBuilder {
             const squirrelDir = 'squirrel-windows' + (target.arch === 'ia32' ? '-ia32' : '');
             const archDir = target.arch;
 
-            await fsProm.mkdir(path.join(this.appPubDir, 'install', 'win32', archDir, 'msi'), { recursive: true });
-            await fsProm.mkdir(path.join(this.appPubDir, 'update', 'win32', archDir), { recursive: true });
+            const distPath = path.join(repoDir, 'dist');
+            const squirrelPath = path.join(distPath, squirrelDir);
+            const targetInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir);
+            const targetUpdatePath = path.join(this.appPubDir, 'update', 'win32', archDir);
 
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.exe$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, f),
-                    logger,
-                );
+            await fsProm.mkdir(path.join(targetInstallPath, 'msi'), { recursive: true });
+            await fsProm.mkdir(targetUpdatePath, { recursive: true });
 
-                const latestInstallPath = path.join(this.appPubDir, 'install', 'win32', archDir, 'Element Setup.exe');
-                await updateSymlink(f, latestInstallPath, logger);
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist'), /\.msi$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', f),
-                    path.join(this.appPubDir, 'install', 'win32', archDir, 'msi', f),
-                    logger,
-                );
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /\.nupkg$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
-                    logger,
-                );
-            }
-            for (const f of await getMatchingFilesInDir(path.join(repoDir, 'dist', squirrelDir), /^RELEASES$/)) {
-                await copyAndLog(
-                    path.join(repoDir, 'dist', squirrelDir, f),
-                    path.join(this.appPubDir, 'update', 'win32', archDir, f),
-                    logger,
-                );
-            }
+            await copyMatchingFile(squirrelPath, targetInstallPath, /\.exe$/, logger).then(f => (
+                updateSymlink(f, path.join(targetInstallPath, 'Element Setup.exe'), logger)
+            ));
+            await copyMatchingFile(distPath, path.join(targetInstallPath, 'msi'), /\.msi$/, logger);
+            await copyMatchingFiles(squirrelPath, targetUpdatePath, /\.nupkg$/, logger);
+            await copyMatchingFiles(squirrelPath, targetUpdatePath, /^RELEASES$/, logger);
         } finally {
             await builder.stop();
         }
