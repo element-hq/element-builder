@@ -138,10 +138,6 @@ export default abstract class DesktopBuilder {
         );
     }
 
-    protected getProductName(pkg: Package): string {
-        return pkg.productName;
-    }
-
     protected getElectronBuilderConfig(
         pkg: Package,
         target: Target,
@@ -150,7 +146,7 @@ export default abstract class DesktopBuilder {
         return {
             ...pkg.build,
             extraMetadata: {
-                productName: this.getProductName(pkg),
+                productName: pkg.productName,
             },
             deb: {
                 fpm: ["--deb-custom-control=debcontrol"],

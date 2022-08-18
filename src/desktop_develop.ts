@@ -206,6 +206,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             // We override a lot of the metadata for the nightly build
             extraMetadata: {
                 ...cfg.extraMetadata,
+                productName: cfg.extraMetadata.productName + " Nightly",
                 name: "element-desktop-nightly",
                 version,
             },
