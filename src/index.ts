@@ -21,6 +21,7 @@ import { Target, TARGETS } from 'element-desktop/scripts/hak/target';
 import logger from './logger';
 import DesktopDevelopBuilder from './desktop_develop';
 import DesktopReleaseBuilder from './desktop_release';
+import DesktopBuilder from "./desktop_builder";
 
 if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env.RIOTBUILD_ACCESS_TOKEN) {
     console.log("Logging to console + Matrix");
@@ -87,7 +88,7 @@ const targets: Target[] = [
     TARGETS['i686-pc-windows-msvc'],
 ];
 
-let builder: DesktopDevelopBuilder | DesktopReleaseBuilder;
+let builder: DesktopBuilder;
 if (desktopBranch) {
     builder = new DesktopReleaseBuilder(targets, winVmName, winUsername, winPassword, rsyncServer, desktopBranch);
 } else {

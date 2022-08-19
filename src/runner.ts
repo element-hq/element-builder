@@ -28,11 +28,12 @@ export default class Runner implements IRunner {
     constructor(
         private readonly cwd: string,
         private readonly logger: Logger,
-        env?: NodeJS.ProcessEnv,
+        env: NodeJS.ProcessEnv = {},
     ) {
-        if (env) {
-            this.env = Object.assign({}, process.env, env);
-        }
+        this.env = {
+            ...process.env,
+            ...env,
+        };
     }
 
     public async setup(): Promise<void> {
