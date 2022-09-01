@@ -17,11 +17,22 @@ limitations under the License.
 */
 
 import { Target, TARGETS } from 'element-desktop/scripts/hak/target';
+import os from "os";
 
 import logger from './logger';
 import DesktopDevelopBuilder from './desktop_develop';
 import DesktopReleaseBuilder from './desktop_release';
 import DesktopBuilder from "./desktop_builder";
+
+const lockFile = os.path.join(process.cwd(), "element-builder.lock");
+if (os.existsSync(lockFile)) {
+    console.error("Lock file found, other instance likely already running!");
+    process.exit(1);
+}
+process.on("beforeExit", () => {
+    os.rmSync(lockFile);
+});
+os.writeFileSync(lockFile, process.pid?.toString());
 
 if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env.RIOTBUILD_ACCESS_TOKEN) {
     console.log("Logging to console + Matrix");
