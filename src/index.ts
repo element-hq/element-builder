@@ -26,16 +26,6 @@ import DesktopDevelopBuilder from './desktop_develop';
 import DesktopReleaseBuilder from './desktop_release';
 import DesktopBuilder, { Options } from "./desktop_builder";
 
-const lockFile = path.join(process.cwd(), "element-builder.lock");
-if (fs.existsSync(lockFile)) {
-    console.error("Lock file found, other instance likely already running!");
-    process.exit(1);
-}
-process.on("beforeExit", () => {
-    fs.rmSync(lockFile);
-});
-fs.writeFileSync(lockFile, process.pid?.toString());
-
 if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env.RIOTBUILD_ACCESS_TOKEN) {
     console.log("Logging to console + Matrix");
     logger.setup(process.env.RIOTBUILD_BASEURL, process.env.RIOTBUILD_ROOMID, process.env.RIOTBUILD_ACCESS_TOKEN);
@@ -106,6 +96,16 @@ const args = yargs(process.argv).options({
         demandOption: false,
     },
 }).parseSync();
+
+const lockFile = path.join(process.cwd(), "element-builder.lock");
+if (fs.existsSync(lockFile)) {
+    console.error("Lock file found, other instance likely already running!");
+    process.exit(1);
+}
+process.on("beforeExit", () => {
+    fs.rmSync(lockFile);
+});
+fs.writeFileSync(lockFile, process.pid?.toString());
 
 const options: Options = {
     targets: args.targets.map(target => TARGETS[target]) as Target[],
