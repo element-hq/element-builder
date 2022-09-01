@@ -17,22 +17,24 @@ limitations under the License.
 */
 
 import { Target, TARGETS } from 'element-desktop/scripts/hak/target';
-import os from "os";
+import yargs from "yargs";
+import path from "path";
+import fs from "fs";
 
 import logger from './logger';
 import DesktopDevelopBuilder from './desktop_develop';
 import DesktopReleaseBuilder from './desktop_release';
-import DesktopBuilder from "./desktop_builder";
+import DesktopBuilder, { Options } from "./desktop_builder";
 
-const lockFile = os.path.join(process.cwd(), "element-builder.lock");
-if (os.existsSync(lockFile)) {
+const lockFile = path.join(process.cwd(), "element-builder.lock");
+if (fs.existsSync(lockFile)) {
     console.error("Lock file found, other instance likely already running!");
     process.exit(1);
 }
 process.on("beforeExit", () => {
-    os.rmSync(lockFile);
+    fs.rmSync(lockFile);
 });
-os.writeFileSync(lockFile, process.pid?.toString());
+fs.writeFileSync(lockFile, process.pid?.toString());
 
 if (process.env.RIOTBUILD_BASEURL && process.env.RIOTBUILD_ROOMID && process.env.RIOTBUILD_ACCESS_TOKEN) {
     console.log("Logging to console + Matrix");
@@ -64,45 +66,61 @@ if (rsyncServer === undefined) {
     process.exit(1);
 }
 
-// For a release build, this is the tag / branch of element-desktop to build from.
-let desktopBranch: string = null;
-let force = false;
+const args = yargs(process.argv).options({
+    "version": {
+        alias: "v",
+        type: "string",
+        description: "Specifies the release version (branch/tag) to build",
+        requiresArg: true,
+        demandOption: false,
+    },
+    "force": {
+        alias: "f",
+        type: "boolean",
+        description: "Force a build, currently only supported for Nightlies," +
+            "creates a new one with an incremented version",
+        conflicts: ["version"],
+        requiresArg: false,
+        demandOption: false,
+    },
+    "targets": {
+        alias: "t",
+        type: "array",
+        description: "The list of targets to build, in rust platform id format",
+        choices: Object.keys(TARGETS),
+        requiresArg: true,
+        demandOption: false,
+        default: [
+            // The set of targets we build by default, sorted by increasing complexity so
+            // that we fail fast when the native host target fails.
+            'universal-apple-darwin',
+            'x86_64-unknown-linux-gnu',
+            'x86_64-pc-windows-msvc',
+            'i686-pc-windows-msvc',
+        ],
+        coerce: args => args.map(arg => TARGETS[arg]) as Target[],
+    },
+    "debian-version": {
+        type: "string",
+        description: "The debian-version override string to use",
+        requiresArg: true,
+        demandOption: false,
+    },
+}).parseSync();
 
-while (process.argv.length > 2) {
-    switch (process.argv[2]) {
-        // Specifies the release version (branch/tag) to build
-        case '--version':
-        case '-v':
-            process.argv.shift();
-            desktopBranch = process.argv[2];
-            break;
-
-        // Force a build, currently only supported for Nightlies, creates a new one with an incremented version
-        case '--force':
-        case '-f':
-            force = true;
-            break;
-
-        default:
-            console.error(`Unknown option ${process.argv[2]}`);
-            process.exit(1);
-    }
-    process.argv.shift();
-}
-
-// The set of targets we build by default, sorted by increasing complexity so
-// that we fail fast when the native host target fails.
-const targets: Target[] = [
-    TARGETS['universal-apple-darwin'],
-    TARGETS['x86_64-unknown-linux-gnu'],
-    TARGETS['x86_64-pc-windows-msvc'],
-    TARGETS['i686-pc-windows-msvc'],
-];
+const options: Options = {
+    targets: args.targets,
+    debianVersion: args.debianVersion,
+    winVmName,
+    winUsername,
+    winPassword,
+    rsyncRoot: rsyncServer,
+};
 
 let builder: DesktopBuilder;
-if (desktopBranch) {
-    builder = new DesktopReleaseBuilder(targets, winVmName, winUsername, winPassword, rsyncServer, desktopBranch);
+if (args.version) {
+    builder = new DesktopReleaseBuilder(options, args.version);
 } else {
-    builder = new DesktopDevelopBuilder(targets, winVmName, winUsername, winPassword, rsyncServer, force);
+    builder = new DesktopDevelopBuilder(options, args.force);
 }
 builder.start();

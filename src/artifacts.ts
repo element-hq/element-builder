@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 import { promises as fsProm } from 'fs';
-import * as path from "path";
-import * as rimraf from 'rimraf';
+import path from "path";
+import rimraf from 'rimraf';
 
 import { Logger } from './logger';
 import { spawn } from "./spawn";

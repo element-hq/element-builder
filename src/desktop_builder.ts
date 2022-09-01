@@ -81,6 +81,15 @@ export interface Package {
     productName: string;
 }
 
+export interface Options {
+    targets: Target[];
+    debianVersion?: string;
+    winVmName: string;
+    winUsername: string;
+    winPassword: string;
+    rsyncRoot: string;
+}
+
 export default abstract class DesktopBuilder {
     protected readonly pubDir = path.join(process.cwd(), 'packages.riot.im');
     // This should be a reprepro dir with a config redirecting  the output to pub/debian
@@ -89,11 +98,7 @@ export default abstract class DesktopBuilder {
     protected building = false;
 
     constructor(
-        protected readonly targets: Target[],
-        protected readonly winVmName: string,
-        protected readonly winUsername: string,
-        protected readonly winPassword: string,
-        protected readonly rsyncRoot: string,
+        protected readonly options: Options,
     ) { }
 
     public abstract start(): Promise<void>;
@@ -129,9 +134,9 @@ export default abstract class DesktopBuilder {
         return new WindowsBuilder(
             repoDir,
             target,
-            this.winVmName,
-            this.winUsername,
-            this.winPassword,
+            this.options.winVmName,
+            this.options.winUsername,
+            this.options.winPassword,
             this.signingKeyContainer,
             logger,
             this.getBuildEnv(),
