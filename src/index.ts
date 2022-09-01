@@ -98,7 +98,6 @@ const args = yargs(process.argv).options({
             'x86_64-pc-windows-msvc',
             'i686-pc-windows-msvc',
         ],
-        coerce: args => args.map(arg => TARGETS[arg]) as Target[],
     },
     "debian-version": {
         type: "string",
@@ -109,7 +108,7 @@ const args = yargs(process.argv).options({
 }).parseSync();
 
 const options: Options = {
-    targets: args.targets,
+    targets: args.targets.map(target => TARGETS[target]) as Target[],
     debianVersion: args.debianVersion,
     winVmName,
     winUsername,
