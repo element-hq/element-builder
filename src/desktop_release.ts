@@ -30,7 +30,7 @@ import {
     copyMatchingFiles,
     copyMatchingFile,
 } from './artifacts';
-import DesktopBuilder from "./desktop_builder";
+import DesktopBuilder, { Options } from "./desktop_builder";
 
 const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
@@ -40,14 +40,10 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
     private gnupgDir = path.join(process.cwd(), 'gnupg');
 
     constructor(
-        targets: Target[],
-        winVmName: string,
-        winUsername: string,
-        winPassword: string,
-        rsyncRoot: string,
+        options: Options,
         private readonly desktopBranch: string,
     ) {
-        super(targets, winVmName, winUsername, winPassword, rsyncRoot);
+        super(options);
     }
 
     public async start(): Promise<void> {
@@ -78,7 +74,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
 
         if (this.building) return;
 
-        const toBuild = this.targets;
+        const toBuild = this.options.targets;
         if (toBuild.length === 0) return;
 
         try {
@@ -107,7 +103,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
 
             rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
             const reactionLogger = rootLogger.reactionLogger();
-            await pushArtifacts(this.pubDir, this.rsyncRoot, rootLogger);
+            await pushArtifacts(this.pubDir, this.options.rsyncRoot, rootLogger);
             reactionLogger.info("✅ Done!");
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
@@ -155,6 +151,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         if (target.platform == 'linux') {
             await setDebVersion(
                 buildVersion,
+                this.options.debianVersion,
                 path.join(repoDir, 'element.io', 'release', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
                 logger,

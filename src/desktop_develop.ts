@@ -23,7 +23,13 @@ import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, pushArtifacts, copyMatchingFiles, copyMatchingFile, rm } from './artifacts';
-import DesktopBuilder, { DESKTOP_GIT_REPO, ELECTRON_BUILDER_CFG_FILE, Package, PackageBuild } from "./desktop_builder";
+import DesktopBuilder, {
+    DESKTOP_GIT_REPO,
+    ELECTRON_BUILDER_CFG_FILE,
+    Options,
+    Package,
+    PackageBuild,
+} from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
@@ -101,14 +107,10 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
     private lastFailTimes: Partial<Record<TargetId, number>> = {};
 
     constructor(
-        targets: Target[],
-        winVmName: string,
-        winUsername: string,
-        winPassword: string,
-        rsyncRoot: string,
+        options: Options,
         private force = false,
     ) {
-        super(targets, winVmName, winUsername, winPassword, rsyncRoot);
+        super(options);
     }
 
     public async start(): Promise<void> {
@@ -121,7 +123,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
 
         this.lastBuildTimes = {};
         this.lastFailTimes = {};
-        for (const target of this.targets) {
+        for (const target of this.options.targets) {
             this.lastBuildTimes[target.id] = await getLastBuild(target, logger);
             this.lastFailTimes[target.id] = 0;
         }
@@ -134,7 +136,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         if (this.building) return;
 
         const toBuild: Target[] = [];
-        for (const target of this.targets) {
+        for (const target of this.options.targets) {
             const nextBuildDue = getNextBuildTime(new Date(Math.max(
                 this.lastBuildTimes[target.id].time,
                 this.lastFailTimes[target.id],
@@ -179,7 +181,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
 
             rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
             const reactionLogger = rootLogger.reactionLogger();
-            await pushArtifacts(this.pubDir, this.rsyncRoot, rootLogger);
+            await pushArtifacts(this.pubDir, this.options.rsyncRoot, rootLogger);
             reactionLogger.info("✅ Done!");
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
@@ -229,6 +231,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         if (target.platform === 'linux') {
             await setDebVersion(
                 buildVersion,
+                this.options.debianVersion,
                 path.join(repoDir, 'element.io', 'nightly', 'control.template'),
                 path.join(repoDir, 'debcontrol'),
                 logger,

@@ -31,7 +31,18 @@ async function getRepoTargets(repoDir: string): Promise<string[]> {
     return ret;
 }
 
-export async function setDebVersion(ver: string, templateFile: string, outFile: string, logger: Logger): Promise<void> {
+export async function setDebVersion(
+    appVersion: string,
+    debianVersion: string | undefined,
+    templateFile: string,
+    outFile: string,
+    logger: Logger,
+): Promise<void> {
+    let ver = appVersion;
+    if (debianVersion) {
+        ver += "-" + debianVersion;
+    }
+
     // Create a debian package control file with the version.
     // We use a custom control file so we need to do this ourselves
     let contents = await fsProm.readFile(templateFile, 'utf8');
