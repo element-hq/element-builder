@@ -56,7 +56,7 @@ if (rsyncServer === undefined) {
     process.exit(1);
 }
 
-const args = yargs(process.argv).options({
+const args = yargs(process.argv).version(false).options({
     "version": {
         alias: "v",
         type: "string",
