@@ -690,7 +690,7 @@ electron-window-state@^5.0.3:
 
 element-desktop@vector-im/element-desktop#develop:
   version "1.11.5"
-  resolved "https://codeload.github.com/vector-im/element-desktop/tar.gz/b89b2637b9ac023e5e9ffd66dcd0e5eab2251428"
+  resolved "https://codeload.github.com/vector-im/element-desktop/tar.gz/392005b3a4257af496ec85e714d259bf502b9ff0"
   dependencies:
     auto-launch "^5.0.5"
     counterpart "^0.18.6"
