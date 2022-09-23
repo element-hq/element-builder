@@ -95,6 +95,19 @@ const args = yargs(process.argv).version(false).options({
         requiresArg: true,
         demandOption: false,
     },
+    "skip-rsync": {
+        type: "boolean",
+        description: "Whether to skip the rsync publishing step",
+        requiresArg: false,
+        demandOption: false,
+    },
+    "rsync-only": {
+        type: "boolean",
+        description: "",
+        requiresArg: false,
+        demandOption: false,
+        conflicts: ["version", "force", "targets", "debian-version", "skip-rsync"],
+    },
 }).parseSync();
 
 const lockFile = path.join(process.cwd(), "element-builder.lock");
@@ -113,7 +126,7 @@ const options: Options = {
     winVmName,
     winUsername,
     winPassword,
-    rsyncRoot: rsyncServer,
+    rsyncRoot: args.skipRsync ? undefined : rsyncServer,
 };
 
 let builder: DesktopBuilder;
@@ -122,4 +135,9 @@ if (args.version) {
 } else {
     builder = new DesktopDevelopBuilder(options, args.force);
 }
-builder.start();
+
+if (args.rsyncOnly) {
+    builder.syncArtifacts(logger);
+} else {
+    builder.start();
+}

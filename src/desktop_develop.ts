@@ -19,10 +19,9 @@ import * as path from 'path';
 import { Target, TargetId, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
 import rootLogger, { LoggableError, Logger } from './logger';
-import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyMatchingFiles, copyMatchingFile, rm } from './artifacts';
+import { getMatchingFilesInDir, copyMatchingFiles, copyMatchingFile, rm } from './artifacts';
 import DesktopBuilder, {
     DESKTOP_GIT_REPO,
     ELECTRON_BUILDER_CFG_FILE,
@@ -179,10 +178,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
                 }
             }
 
-            rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
-            const reactionLogger = rootLogger.reactionLogger();
-            await pushArtifacts(this.pubDir, this.options.rsyncRoot, rootLogger);
-            reactionLogger.info("✅ Done!");
+            await this.pushArtifacts(toBuild);
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
             // Mark all types as failed if artifact sync fails
@@ -238,21 +234,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             );
         }
 
-        let runner: IRunner;
-        switch (target.platform) {
-            case 'darwin':
-                runner = this.makeMacRunner(repoDir, logger);
-                break;
-            case 'linux':
-                runner = this.makeLinuxRunner(repoDir, logger);
-                break;
-            default:
-                throw new Error(`Unexpected local target ${target.id}`);
-        }
-
-        await runner.setup();
-        await this.buildWithRunner(runner, buildVersion, target);
-        logger.info("Build completed!");
+        await this.buildWithRunner(target, repoDir, buildVersion, logger);
 
         if (target.platform === 'darwin') {
             const distPath = path.join(repoDir, 'dist');

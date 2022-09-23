@@ -34,8 +34,8 @@ export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<s
     return ret;
 }
 
-export function pushArtifacts(pubDir: string, rsyncRoot: string, logger: Logger): Promise<void> {
-    logger.info("Uploading artifacts...");
+export function syncArtifacts(pubDir: string, rsyncRoot: string, logger: Logger): Promise<void> {
+    logger.info("Syncing artifacts...");
     return spawn('rsync', [
         '-av', '--delete', '--delay-updates', pubDir + '/', rsyncRoot + 'packages.riot.im',
     ]);

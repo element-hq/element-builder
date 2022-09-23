@@ -18,12 +18,12 @@ import { promises as fsProm } from 'fs';
 import * as path from 'path';
 import { Target, UniversalTarget, WindowsTarget } from "element-desktop/scripts/hak/target";
 
-import { Logger } from "./logger";
+import rootLogger, { Logger } from "./logger";
 import Runner, { IRunner } from "./runner";
 import DockerRunner from "./docker_runner";
 import WindowsBuilder from "./windows_builder";
 import getSecret from "./get_secret";
-import { rm } from "./artifacts";
+import { syncArtifacts, rm } from "./artifacts";
 import GitRepo from "./gitrepo";
 
 export const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
@@ -87,7 +87,7 @@ export interface Options {
     winVmName: string;
     winUsername: string;
     winPassword: string;
-    rsyncRoot: string;
+    rsyncRoot?: string;
 }
 
 export default abstract class DesktopBuilder {
@@ -183,10 +183,25 @@ export default abstract class DesktopBuilder {
     protected abstract fetchArgs(): string[];
 
     protected async buildWithRunner(
-        runner: IRunner,
-        buildVersion: string,
         target: Target,
+        repoDir: string,
+        buildVersion: string,
+        logger: Logger,
     ): Promise<void> {
+        let runner: IRunner;
+        switch (target.platform) {
+            case 'darwin':
+                runner = this.makeMacRunner(repoDir, logger);
+                break;
+            case 'linux':
+                runner = this.makeLinuxRunner(repoDir, logger);
+                break;
+            default:
+                throw new Error(`Unexpected local target ${target.id}`);
+        }
+
+        await runner.setup();
+
         await runner.run('yarn', 'install');
         if (target.arch == 'universal') {
             const subtargets = (target as UniversalTarget).subtargets;
@@ -208,6 +223,8 @@ export default abstract class DesktopBuilder {
         }
         await runner.run('yarn', 'run', 'fetch', ...this.fetchArgs());
         await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
+
+        logger.info("Build completed!");
     }
 
     protected async cloneRepo(target: Target, buildVersion: string, logger: Logger, branch = "develop"): Promise<{
@@ -239,6 +256,22 @@ export default abstract class DesktopBuilder {
             repoDir,
             buildDirName,
         };
+    }
+
+    protected async pushArtifacts(targets: Target[]): Promise<void> {
+        if (this.options.rsyncRoot) {
+            rootLogger.info(`Built packages for: ${targets.map(t => t.id).join(', ')} : pushing packages...`);
+            const reactionLogger = rootLogger.reactionLogger();
+            await this.syncArtifacts(rootLogger.threadLogger());
+            reactionLogger.info("✅ Done!");
+        } else {
+            rootLogger.info(`Built packages for: ${targets.map(t => t.id).join(', ')}`);
+        }
+    }
+
+    public async syncArtifacts(logger: Logger): Promise<void> {
+        if (!this.options.rsyncRoot) return; // nothing to do
+        await syncArtifacts(this.pubDir, this.options.rsyncRoot, logger);
     }
 }
 
