@@ -103,10 +103,29 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         options: Options,
         private force = false,
     ) {
-        super(options);
+        super(options, {
+            fetchArgs: ["develop", "-d", "element.io/nightly"],
+            dockerImage: "element-desktop-dockerbuild-develop",
+        });
+        if (options.fetchArgs) {
+            this.force = true;
+        }
     }
 
-    public async start(): Promise<void> {
+    protected printInfo(): void {
+        if (this.options.fetchArgs) {
+            console.log("Warming up Nightly builder for a one-off");
+        } else {
+            console.log("Warming up Nightly builder");
+        }
+        super.printInfo();
+        console.log("Forcing an extra Nightly build");
+        if (!this.options.fetchArgs) {
+            console.warn("This process will not exit, continuing to produce Nightly builds");
+        }
+    }
+
+    public async startBuild(): Promise<void> {
         rootLogger.info("Starting Element Desktop nightly builder...");
         const logger = rootLogger.threadLogger();
         this.building = false;
@@ -266,14 +285,6 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         };
     }
 
-    protected getDockerImageName(): string {
-        return "element-desktop-dockerbuild-develop";
-    }
-
-    protected fetchArgs(): string[] {
-        return ["develop", "-d", "element.io/nightly"];
-    }
-
     private async buildWin(target: WindowsTarget, buildVersion: string, logger: Logger): Promise<void> {
         // We still check out the repo locally because we need package.json to write the electron builder config file,
         // so we check out the repo twice for windows: once locally and once on the VM...
@@ -295,7 +306,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check', '--target', target.id);
             builder.appendScript('call', 'yarn', 'run', 'build:native', '--target', target.id);
-            const fetchArgs = this.fetchArgs().map(a => a.replace(/\//g, "\\"));
+            const fetchArgs = this.fetchArgs.map(a => a.replace(/\//g, "\\"));
             builder.appendScript('call', 'yarn', 'run', 'fetch', ...fetchArgs);
             builder.appendScript(
                 'call', 'yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE,
