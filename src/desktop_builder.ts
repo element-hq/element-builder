@@ -310,7 +310,7 @@ export default abstract class DesktopBuilder {
             await this.syncArtifacts(rootLogger.threadLogger());
             reactionLogger.info("✅ Done!");
         } else {
-            rootLogger.info(`Built packages for: ${targets.map(t => t.id).join(', ')}`);
+            rootLogger.info(`Built packages for: ${targets.map(t => t.id).join(', ')} : not syncing packages.`);
         }
     }
 
