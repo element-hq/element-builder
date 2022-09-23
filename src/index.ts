@@ -110,10 +110,10 @@ const args = yargs(process.argv).version(false).options({
     },
     "rsync-only": {
         type: "boolean",
-        description: "",
+        description: "Just synchronise artifacts",
         requiresArg: false,
         demandOption: false,
-        conflicts: ["version", "force", "targets", "debian-version", "skip-rsync"],
+        conflicts: ["version", "force", "debian-version", "skip-rsync"],
     },
 }).parseSync();
 
