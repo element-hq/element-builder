@@ -21,9 +21,9 @@ import * as https from 'https';
 type Level = 'error' | 'warn' | 'info' | 'debug';
 
 export class Logger {
-    protected baseUrl: string;
-    protected mxAccessToken: string;
-    protected mxRoomId: string;
+    protected baseUrl?: string;
+    protected mxAccessToken?: string;
+    protected mxRoomId?: string;
     private eventIdPromise = Promise.resolve("");
     private context = new MatrixLogContext(this.eventIdPromise);
 
@@ -104,7 +104,7 @@ export class Logger {
     }
 
     private sendEvent(fn: () => object, type = "m.room.message"): Promise<string> {
-        const url = `${this.baseUrl}/_matrix/client/r0/rooms/${encodeURIComponent(this.mxRoomId)}/send/${type}`;
+        const url = `${this.baseUrl}/_matrix/client/r0/rooms/${encodeURIComponent(this.mxRoomId!)}/send/${type}`;
         // Make all events send sequentially
         const prom = this.eventIdPromise.then(lastEventId => (
             this.request(url, "POST", "application/json", JSON.stringify(fn()))
@@ -114,7 +114,7 @@ export class Logger {
         return prom;
     }
 
-    protected async log(level: Level, ...args: any[]): Promise<string> {
+    protected async log(level: Level, ...args: any[]): Promise<string | void> {
         console[level](...args);
 
         if (this.baseUrl === undefined) return;
@@ -128,7 +128,7 @@ export class Logger {
         const logger = new Logger();
         logger.context = context;
         logger.eventIdPromise = logger.context.ready().then(() => "");
-        logger.setup(this.baseUrl, this.mxRoomId, this.mxAccessToken);
+        logger.setup(this.baseUrl!, this.mxRoomId!, this.mxAccessToken!);
         return logger;
     }
 
@@ -165,7 +165,7 @@ class MatrixLogContext {
 }
 
 class ThreadLogContext extends MatrixLogContext {
-    private threadId: string;
+    private threadId?: string;
 
     constructor(private readonly threadIdPromise: Promise<string>) {
         super(threadIdPromise);
@@ -186,7 +186,7 @@ class ThreadLogContext extends MatrixLogContext {
 }
 
 class EditLogContext extends MatrixLogContext {
-    private eventId: string;
+    private eventId?: string;
 
     constructor(private readonly eventIdPromise: Promise<string>) {
         super(eventIdPromise);
@@ -208,7 +208,7 @@ class EditLogContext extends MatrixLogContext {
 }
 
 class ReactionLogContext extends MatrixLogContext {
-    private eventId: string;
+    private eventId?: string;
 
     constructor(private readonly eventIdPromise: Promise<string>) {
         super(eventIdPromise);
@@ -217,7 +217,7 @@ class ReactionLogContext extends MatrixLogContext {
         });
     }
 
-    public getContent(content: object): object {
+    public getContent(content: Record<string, any>): object {
         return {
             "m.relates_to": {
                 event_id: this.eventId,

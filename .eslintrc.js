@@ -15,6 +15,7 @@ module.exports = {
     rules: {
         // We aren't using ES modules here yet
         "@typescript-eslint/no-var-requires": "off",
+        "@typescript-eslint/no-non-null-assertion": "off",
 
         // Ensure we always explicitly access string representations
         "@typescript-eslint/no-base-to-string": "error",

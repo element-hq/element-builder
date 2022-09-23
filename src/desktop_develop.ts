@@ -137,8 +137,8 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         const toBuild: Target[] = [];
         for (const target of this.options.targets) {
             const nextBuildDue = getNextBuildTime(new Date(Math.max(
-                this.lastBuildTimes[target.id].time,
-                this.lastFailTimes[target.id],
+                this.lastBuildTimes[target.id]!.time,
+                this.lastFailTimes[target.id]!,
             )));
             //logger.debug("Next build due at " + nextBuildDue);
             if (this.force || (nextBuildDue.getTime() < Date.now())) {
@@ -157,11 +157,11 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
                 const jobReactionLogger = rootLogger.reactionLogger();
                 const logger = rootLogger.threadLogger();
                 try {
-                    const [thisBuildVersion, buildNumber] = getBuildVersion(this.lastBuildTimes[target.id]);
+                    const [thisBuildVersion, buildNumber] = getBuildVersion(this.lastBuildTimes[target.id]!);
                     await this.build(target, thisBuildVersion, logger);
-                    this.lastBuildTimes[target.id].time = Date.now();
-                    this.lastBuildTimes[target.id].number = buildNumber;
-                    await putLastBuild(target, this.lastBuildTimes[target.id], logger);
+                    this.lastBuildTimes[target.id]!.time = Date.now();
+                    this.lastBuildTimes[target.id]!.number = buildNumber;
+                    await putLastBuild(target, this.lastBuildTimes[target.id]!, logger);
                     jobReactionLogger.info("✅ Done!");
                 } catch (e) {
                     logger.error("Build failed!", e);
@@ -204,7 +204,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             // We override a lot of the metadata for the nightly build
             extraMetadata: {
                 ...cfg.extraMetadata,
-                productName: cfg.extraMetadata.productName + " Nightly",
+                productName: cfg.extraMetadata!.productName + " Nightly",
                 name: "element-desktop-nightly",
                 version,
             },

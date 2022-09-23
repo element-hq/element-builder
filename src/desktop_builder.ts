@@ -94,7 +94,7 @@ export default abstract class DesktopBuilder {
     protected readonly pubDir = path.join(process.cwd(), 'packages.riot.im');
     // This should be a reprepro dir with a config redirecting  the output to pub/debian
     protected readonly debDir = path.join(process.cwd(), 'debian');
-    protected signingKeyContainer: string;
+    protected signingKeyContainer?: string;
     protected building = false;
 
     constructor(
@@ -137,7 +137,7 @@ export default abstract class DesktopBuilder {
             this.options.winVmName,
             this.options.winUsername,
             this.options.winPassword,
-            this.signingKeyContainer,
+            this.signingKeyContainer!,
             logger,
             this.getBuildEnv(),
         );
@@ -171,7 +171,7 @@ export default abstract class DesktopBuilder {
         if (target.platform === "linux") {
             // Electron crashes on debian if there's a space in the path.
             // https://github.com/vector-im/element-web/issues/13171
-            cfg.extraMetadata.productName = cfg.extraMetadata.productName.replace(/ /g, "-");
+            cfg.extraMetadata!.productName = cfg.extraMetadata!.productName!.replace(/ /g, "-");
         }
 
         await fsProm.writeFile(

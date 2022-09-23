@@ -3,7 +3,8 @@
         "module": "commonjs",
         "target": "es2020",
         "outDir": "./lib",
-        "esModuleInterop": true
+        "esModuleInterop": true,
+        "strict": true
     },
     "include": [
         ".eslintrc.js",
