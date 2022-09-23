@@ -30,9 +30,8 @@ import {
     copyMatchingFiles,
     copyMatchingFile,
 } from './artifacts';
-import DesktopBuilder, { Options } from "./desktop_builder";
+import DesktopBuilder, { DESKTOP_GIT_REPO, Options } from "./desktop_builder";
 
-const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 
 export default class DesktopReleaseBuilder extends DesktopBuilder {
