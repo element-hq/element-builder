@@ -107,24 +107,15 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             fetchArgs: ["develop", "-d", "element.io/nightly"],
             dockerImage: "element-desktop-dockerbuild-develop",
         });
-        if (options.fetchArgs) {
-            this.force = true;
-        }
     }
 
     protected printInfo(): void {
-        if (this.options.fetchArgs) {
-            console.log("Warming up Nightly builder for a one-off");
-        } else {
-            console.log("Warming up Nightly builder");
-        }
+        console.log("Warming up Nightly builder");
         super.printInfo();
         if (this.force) {
             console.log("Forcing an extra Nightly build");
         }
-        if (!this.options.fetchArgs) {
-            console.warn("This process will not exit, continuing to produce Nightly builds");
-        }
+        console.warn("This process will not exit, continuing to produce Nightly builds");
     }
 
     public async startBuild(): Promise<void> {

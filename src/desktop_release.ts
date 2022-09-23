@@ -28,9 +28,7 @@ import {
     copyMatchingFiles,
     copyMatchingFile,
 } from './artifacts';
-import DesktopBuilder, { Options } from "./desktop_builder";
-
-const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
+import DesktopBuilder, { ELECTRON_BUILDER_CFG_FILE, Options } from "./desktop_builder";
 
 export default class DesktopReleaseBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'desktop');
@@ -47,10 +45,6 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
 
     protected printInfo(): void {
         console.log("Warming up Release builder");
-        if (this.options.fetchArgs?.includes("://")) {
-            const url = this.fetchArgs.find(a => a.includes("://"));
-            console.log(`This looks like a custom build using tarball url ${url}`);
-        }
         super.printInfo();
     }
 

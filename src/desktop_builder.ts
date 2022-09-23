@@ -89,7 +89,6 @@ export interface Options {
     winPassword: string;
     rsyncRoot?: string;
     gitRepo: string;
-    fetchArgs?: string;
 }
 
 export interface BuildConfig {
@@ -113,7 +112,7 @@ export default abstract class DesktopBuilder {
         buildConfig: BuildConfig,
     ) {
         this.dockerImage = buildConfig.dockerImage ?? "element-desktop-dockerbuild";
-        this.fetchArgs = buildConfig.fetchArgs.concat((options.fetchArgs || "").split(" "));
+        this.fetchArgs = buildConfig.fetchArgs;
         this.gitBranch = buildConfig.branch ?? "develop";
     }
 
@@ -298,11 +297,7 @@ export default abstract class DesktopBuilder {
         await repo.clone(this.options.gitRepo, repoDir, "-b", this.gitBranch);
         logger.info(`...checked out '${this.gitBranch}' branch, starting build for ${target.id}`);
 
-        return {
-            repo,
-            repoDir,
-            buildDirName,
-        };
+        return { repo, repoDir, buildDirName };
     }
 
     protected async pushArtifacts(targets: Target[]): Promise<void> {
