@@ -225,7 +225,8 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             builder.appendScript('call', 'yarn', 'run', 'build:native', '--target', target.id);
             // This will fetch the Element release from GitHub that matches the
             // version in element-desktop's package.json.
-            builder.appendScript('call', 'yarn', 'run', 'fetch', '-d', 'element.io\\release');
+            const fetchArgs = this.fetchArgs().map(a => a.replace(/\//g, "\\"));
+            builder.appendScript('call', 'yarn', 'run', 'fetch', ...fetchArgs);
             builder.appendScript(
                 'call', 'yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE,
             );

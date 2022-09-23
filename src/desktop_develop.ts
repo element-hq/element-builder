@@ -295,7 +295,8 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check', '--target', target.id);
             builder.appendScript('call', 'yarn', 'run', 'build:native', '--target', target.id);
-            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'element.io\\nightly');
+            const fetchArgs = this.fetchArgs().map(a => a.replace(/\//g, "\\"));
+            builder.appendScript('call', 'yarn', 'run', 'fetch', ...fetchArgs);
             builder.appendScript(
                 'call', 'yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
