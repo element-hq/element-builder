@@ -143,6 +143,7 @@ export default abstract class DesktopBuilder {
     public async start(): Promise<void> {
         console.log("");
         await this.printInfo();
+        console.log("");
 
         const rl = readline.createInterface({
             input: process.stdin,
