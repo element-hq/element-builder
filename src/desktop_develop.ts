@@ -22,13 +22,7 @@ import rootLogger, { LoggableError, Logger } from './logger';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
 import { getMatchingFilesInDir, copyMatchingFiles, copyMatchingFile, rm } from './artifacts';
-import DesktopBuilder, {
-    DESKTOP_GIT_REPO,
-    ELECTRON_BUILDER_CFG_FILE,
-    Options,
-    Package,
-    PackageBuild,
-} from "./desktop_builder";
+import DesktopBuilder, { ELECTRON_BUILDER_CFG_FILE, Options, Package, PackageBuild } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
@@ -295,7 +289,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
 
         try {
             builder.appendScript('rd', buildDirName, '/s', '/q');
-            builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName);
+            builder.appendScript('git', 'clone', this.options.gitRepo, buildDirName);
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('call', 'yarn', 'install');

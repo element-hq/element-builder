@@ -95,6 +95,13 @@ const args = yargs(process.argv).version(false).options({
         requiresArg: true,
         demandOption: false,
     },
+    "git-repo": {
+        type: "string",
+        description: "The git URL to clone element-desktop from",
+        default: "https://github.com/vector-im/element-desktop.git",
+        requiresArg: true,
+        demandOption: false,
+    },
     "skip-rsync": {
         type: "boolean",
         description: "Whether to skip the rsync publishing step",
@@ -127,6 +134,7 @@ const options: Options = {
     winUsername,
     winPassword,
     rsyncRoot: args.skipRsync ? undefined : rsyncServer,
+    gitRepo: args.gitRepo,
 };
 
 let builder: DesktopBuilder;

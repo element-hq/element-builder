@@ -26,7 +26,6 @@ import getSecret from "./get_secret";
 import { syncArtifacts, rm } from "./artifacts";
 import GitRepo from "./gitrepo";
 
-export const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 export const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 
 interface File {
@@ -88,6 +87,7 @@ export interface Options {
     winUsername: string;
     winPassword: string;
     rsyncRoot?: string;
+    gitRepo: string;
 }
 
 export default abstract class DesktopBuilder {
@@ -248,7 +248,7 @@ export default abstract class DesktopBuilder {
         logger.info("Cloning element-desktop into " + repoDir);
 
         const repo = new GitRepo(repoDir);
-        await repo.clone(DESKTOP_GIT_REPO, repoDir, "-b", branch);
+        await repo.clone(this.options.gitRepo, repoDir, "-b", branch);
         logger.info(`...checked out '${branch}' branch, starting build for ${target.id}`);
 
         return {

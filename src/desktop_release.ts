@@ -28,7 +28,7 @@ import {
     copyMatchingFiles,
     copyMatchingFile,
 } from './artifacts';
-import DesktopBuilder, { DESKTOP_GIT_REPO, Options } from "./desktop_builder";
+import DesktopBuilder, { Options } from "./desktop_builder";
 
 const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 
@@ -216,7 +216,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         try {
             builder.appendScript('rd', buildDirName, '/s', '/q');
             // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
-            builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName, '-b', this.desktopBranch);
+            builder.appendScript('git', 'clone', this.options.gitRepo, buildDirName, '-b', this.desktopBranch);
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('xcopy', 'z:\\gnupg', 'gnupg', '/S', '/I', '/Y');
