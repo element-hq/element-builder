@@ -119,7 +119,9 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             console.log("Warming up Nightly builder");
         }
         super.printInfo();
-        console.log("Forcing an extra Nightly build");
+        if (this.force) {
+            console.log("Forcing an extra Nightly build");
+        }
         if (!this.options.fetchArgs) {
             console.warn("This process will not exit, continuing to produce Nightly builds");
         }

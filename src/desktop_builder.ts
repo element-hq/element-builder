@@ -141,6 +141,7 @@ export default abstract class DesktopBuilder {
     protected abstract startBuild(): Promise<void>;
 
     public async start(): Promise<void> {
+        console.log("");
         await this.printInfo();
 
         const rl = readline.createInterface({
