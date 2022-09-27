@@ -70,7 +70,7 @@ export default class WindowsBuilder {
         console.log("Snapshot restored.");
 
         this.logger.info("Starting VM: " + this.vmName);
-        await this.vboxManage('startvm', this.vmName);
+        await this.vboxManage('startvm', this.vmName, '--type', 'headless');
         await new Promise(resolve => setTimeout(resolve, 5000));
         const waitUntil = Date.now() + STARTVM_TIMEOUT;
         let success = false;
@@ -102,24 +102,19 @@ export default class WindowsBuilder {
             '--hostpath', path.resolve(this.cwd),
             '--name', 'builddir',
             '--transient',
+            '--automount', '--auto-mount-point', 'z:',
         );
 
         let attempts = 0;
         while (attempts < 5) {
             try {
                 attempts++;
-                try {
-                    await this.run('net use z: /delete /y');
-                } catch (e) {
-                }
-                await this.run('net use z: \\\\vboxsvr\\builddir /y');
-                await new Promise(resolve => setTimeout(resolve, 4000));
                 await this.run('z:');
-                this.logger.info("Mapped network drive in " + attempts + " attempts");
+                this.logger.info(`Mapped network drive in ${attempts} attempts`);
                 return;
             } catch (e) {
                 this.logger.info("Failed to map network drive");
-                await new Promise(resolve => setTimeout(resolve, 4000));
+                await new Promise(resolve => setTimeout(resolve, 5000));
             }
         }
 
