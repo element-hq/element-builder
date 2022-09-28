@@ -11,11 +11,13 @@
     "build": "tsc"
   },
   "dependencies": {
+    "detect-libc": "^1.0.3",
     "element-desktop": "vector-im/element-desktop#develop",
     "rimraf": "^3.0.2",
     "yargs": "^17.5.1"
   },
   "devDependencies": {
+    "@types/detect-libc": "^1.0.0",
     "@types/node": "^18.7.14",
     "@types/rimraf": "^3.0.2",
     "@types/yargs": "^17.0.12",

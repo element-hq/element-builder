@@ -34,13 +34,13 @@ export async function spawn(
         console.log(log);
 
         if (captureLog) {
-            proc.stdout.pipe(process.stdout);
-            proc.stderr.pipe(process.stderr);
+            proc.stdout?.pipe(process.stdout);
+            proc.stderr?.pipe(process.stderr);
 
-            proc.stdout.on('data', (chunk) => {
+            proc.stdout?.on('data', (chunk) => {
                 log += chunk.toString();
             });
-            proc.stderr.on('data', (chunk) => {
+            proc.stderr?.on('data', (chunk) => {
                 log += chunk.toString();
             });
         }

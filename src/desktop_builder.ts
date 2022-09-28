@@ -16,17 +16,17 @@ limitations under the License.
 
 import { promises as fsProm } from 'fs';
 import * as path from 'path';
+import * as readline from "readline";
 import { Target, UniversalTarget, WindowsTarget } from "element-desktop/scripts/hak/target";
 
-import { Logger } from "./logger";
+import rootLogger, { Logger } from "./logger";
 import Runner, { IRunner } from "./runner";
 import DockerRunner from "./docker_runner";
 import WindowsBuilder from "./windows_builder";
 import getSecret from "./get_secret";
-import { rm } from "./artifacts";
+import { syncArtifacts, rm } from "./artifacts";
 import GitRepo from "./gitrepo";
 
-export const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
 export const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 
 interface File {
@@ -87,21 +87,73 @@ export interface Options {
     winVmName: string;
     winUsername: string;
     winPassword: string;
-    rsyncRoot: string;
+    rsyncRoot?: string;
+    gitRepo: string;
+}
+
+export interface BuildConfig {
+    fetchArgs: string[];
+    dockerImage?: string;
+    branch?: string;
 }
 
 export default abstract class DesktopBuilder {
     protected readonly pubDir = path.join(process.cwd(), 'packages.riot.im');
     // This should be a reprepro dir with a config redirecting  the output to pub/debian
     protected readonly debDir = path.join(process.cwd(), 'debian');
-    protected signingKeyContainer: string;
+    protected signingKeyContainer?: string;
     protected building = false;
+    protected readonly fetchArgs: string[];
+    protected readonly dockerImage: string;
+    protected readonly gitBranch: string;
 
-    constructor(
+    protected constructor(
         protected readonly options: Options,
-    ) { }
+        buildConfig: BuildConfig,
+    ) {
+        this.dockerImage = buildConfig.dockerImage ?? "element-desktop-dockerbuild";
+        this.fetchArgs = buildConfig.fetchArgs;
+        this.gitBranch = buildConfig.branch ?? "develop";
+    }
 
-    public abstract start(): Promise<void>;
+    protected printInfo(): void {
+        console.log(`Using ${this.options.gitRepo} on branch ${this.gitBranch}`);
+        console.log(`Using fetch args: ${this.fetchArgs.join(" ")}`);
+        console.log(`Using docker image '${this.dockerImage}'`);
+
+        if (this.options.debianVersion) {
+            console.log(`Overriding debian version with ${this.options.debianVersion}`);
+        }
+
+        console.log("Building these targets: ");
+        this.options.targets.forEach(target => {
+            console.log("\t" + target.id);
+        });
+
+        if (this.options.rsyncRoot) {
+            console.log(`Syncing artifacts to ${this.options.rsyncRoot}`);
+        } else {
+            console.log("Syncing artifacts has been disabled");
+        }
+    }
+
+    protected abstract startBuild(): Promise<void>;
+
+    public async start(): Promise<void> {
+        console.log("");
+        await this.printInfo();
+        console.log("");
+
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+
+        await new Promise(resolve => rl.question("Press any key to continue...", resolve));
+        rl.close();
+
+        await this.startBuild();
+    }
 
     protected async loadSigningKeyContainer() {
         // get the token passphrase now so
@@ -117,17 +169,13 @@ export default abstract class DesktopBuilder {
         return {};
     }
 
-    protected getDockerImageName(): string {
-        return "element-desktop-dockerbuild";
-    }
-
     protected makeMacRunner(cwd: string, logger: Logger): IRunner {
         return new Runner(cwd, logger, this.getBuildEnv());
     }
 
     protected makeLinuxRunner(cwd: string, logger: Logger): IRunner {
         const wrapper = path.join('scripts', 'in-docker.sh');
-        return new DockerRunner(cwd, wrapper, this.getDockerImageName(), logger, this.getBuildEnv());
+        return new DockerRunner(cwd, wrapper, this.dockerImage, logger, this.getBuildEnv());
     }
 
     protected makeWindowsBuilder(repoDir: string, target: WindowsTarget, logger: Logger): WindowsBuilder {
@@ -137,7 +185,7 @@ export default abstract class DesktopBuilder {
             this.options.winVmName,
             this.options.winUsername,
             this.options.winPassword,
-            this.signingKeyContainer,
+            this.signingKeyContainer!,
             logger,
             this.getBuildEnv(),
         );
@@ -171,7 +219,7 @@ export default abstract class DesktopBuilder {
         if (target.platform === "linux") {
             // Electron crashes on debian if there's a space in the path.
             // https://github.com/vector-im/element-web/issues/13171
-            cfg.extraMetadata.productName = cfg.extraMetadata.productName.replace(/ /g, "-");
+            cfg.extraMetadata!.productName = cfg.extraMetadata!.productName!.replace(/ /g, "-");
         }
 
         await fsProm.writeFile(
@@ -180,13 +228,26 @@ export default abstract class DesktopBuilder {
         );
     }
 
-    protected abstract fetchArgs(): string[];
-
     protected async buildWithRunner(
-        runner: IRunner,
-        buildVersion: string,
         target: Target,
+        repoDir: string,
+        buildVersion: string,
+        logger: Logger,
     ): Promise<void> {
+        let runner: IRunner;
+        switch (target.platform) {
+            case 'darwin':
+                runner = this.makeMacRunner(repoDir, logger);
+                break;
+            case 'linux':
+                runner = this.makeLinuxRunner(repoDir, logger);
+                break;
+            default:
+                throw new Error(`Unexpected local target ${target.id}`);
+        }
+
+        await runner.setup();
+
         await runner.run('yarn', 'install');
         if (target.arch == 'universal') {
             const subtargets = (target as UniversalTarget).subtargets;
@@ -206,11 +267,13 @@ export default abstract class DesktopBuilder {
             await runner.run('yarn', 'run', 'hak', 'check', '--target', target.id);
             await runner.run('yarn', 'run', 'build:native', '--target', target.id);
         }
-        await runner.run('yarn', 'run', 'fetch', ...this.fetchArgs());
+        await runner.run('yarn', 'run', 'fetch', ...this.fetchArgs);
         await runner.run('yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE);
+
+        logger.info("Build completed!");
     }
 
-    protected async cloneRepo(target: Target, buildVersion: string, logger: Logger, branch = "develop"): Promise<{
+    protected async cloneRepo(target: Target, buildVersion: string, logger: Logger): Promise<{
         buildDirName: string;
         repoDir: string;
         repo: GitRepo;
@@ -231,14 +294,26 @@ export default abstract class DesktopBuilder {
         logger.info("Cloning element-desktop into " + repoDir);
 
         const repo = new GitRepo(repoDir);
-        await repo.clone(DESKTOP_GIT_REPO, repoDir, "-b", branch);
-        logger.info(`...checked out '${branch}' branch, starting build for ${target.id}`);
+        await repo.clone(this.options.gitRepo, repoDir, "-b", this.gitBranch);
+        logger.info(`...checked out '${this.gitBranch}' branch, starting build for ${target.id}`);
 
-        return {
-            repo,
-            repoDir,
-            buildDirName,
-        };
+        return { repo, repoDir, buildDirName };
+    }
+
+    protected async pushArtifacts(targets: Target[]): Promise<void> {
+        if (this.options.rsyncRoot) {
+            rootLogger.info(`Built packages for: ${targets.map(t => t.id).join(', ')} : pushing packages...`);
+            const reactionLogger = rootLogger.reactionLogger();
+            await this.syncArtifacts(rootLogger.threadLogger());
+            reactionLogger.info("✅ Done!");
+        } else {
+            rootLogger.info(`Built packages for: ${targets.map(t => t.id).join(', ')} : not syncing packages.`);
+        }
+    }
+
+    public async syncArtifacts(logger: Logger): Promise<void> {
+        if (!this.options.rsyncRoot) return; // nothing to do
+        await syncArtifacts(this.pubDir, this.options.rsyncRoot, logger);
     }
 }
 

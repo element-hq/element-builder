@@ -19,35 +19,37 @@ import * as path from 'path';
 import { Target, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
 import rootLogger, { LoggableError, Logger } from './logger';
-import { IRunner } from './runner';
 import { setDebVersion, addDeb } from './debian';
 import {
     getMatchingFilesInDir,
-    pushArtifacts,
     copyAndLog,
     rm,
     updateSymlink,
     copyMatchingFiles,
     copyMatchingFile,
 } from './artifacts';
-import DesktopBuilder, { Options } from "./desktop_builder";
-
-const DESKTOP_GIT_REPO = 'https://github.com/vector-im/element-desktop.git';
-const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
+import DesktopBuilder, { ELECTRON_BUILDER_CFG_FILE, Options } from "./desktop_builder";
 
 export default class DesktopReleaseBuilder extends DesktopBuilder {
     private appPubDir = path.join(this.pubDir, 'desktop');
     private gnupgDir = path.join(process.cwd(), 'gnupg');
 
-    constructor(
-        options: Options,
-        private readonly desktopBranch: string,
-    ) {
-        super(options);
+    constructor(options: Options, branch: string) {
+        super(options, {
+            // This will fetch the Element release from GitHub that matches the version in element-desktop's package.json.
+            fetchArgs: ['-d', 'element.io/release'],
+            dockerImage: "element-desktop-dockerbuild-release",
+            branch,
+        });
     }
 
-    public async start(): Promise<void> {
-        rootLogger.info(`Starting Element Desktop ${this.desktopBranch} release builder...`);
+    protected printInfo(): void {
+        console.log("Warming up Release builder");
+        super.printInfo();
+    }
+
+    public async startBuild(): Promise<void> {
+        rootLogger.info(`Starting Element Desktop ${this.gitBranch} release builder...`);
         const introLogger = rootLogger.threadLogger();
         this.building = false;
 
@@ -81,7 +83,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             this.building = true;
 
             for (const target of toBuild) {
-                rootLogger.info(`Starting build of ${target.id} for ${this.desktopBranch}`);
+                rootLogger.info(`Starting build of ${target.id} for ${this.gitBranch}`);
                 const jobReactionLogger = rootLogger.reactionLogger();
                 const logger = rootLogger.threadLogger();
                 try {
@@ -101,10 +103,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
                 }
             }
 
-            rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
-            const reactionLogger = rootLogger.reactionLogger();
-            await pushArtifacts(this.pubDir, this.options.rsyncRoot, rootLogger);
-            reactionLogger.info("✅ Done!");
+            await this.pushArtifacts(toBuild);
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
             if (e instanceof LoggableError) {
@@ -144,7 +143,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
     }
 
     private async buildLocal(target: Target, logger: Logger): Promise<void> {
-        const { repoDir } = await this.cloneRepo(target, this.desktopBranch, logger, this.desktopBranch);
+        const { repoDir } = await this.cloneRepo(target, this.gitBranch, logger);
         const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8')).version;
 
         await this.writeElectronBuilderConfigFile(target, repoDir, buildVersion);
@@ -159,22 +158,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         }
 
         await this.copyGnupgDir(repoDir, logger);
-
-        let runner: IRunner;
-        switch (target.platform) {
-            case 'darwin':
-                runner = this.makeMacRunner(repoDir, logger);
-                break;
-            case 'linux':
-                runner = this.makeLinuxRunner(repoDir, logger);
-                break;
-            default:
-                throw new Error(`Unexpected local target ${target.id}`);
-        }
-
-        await runner.setup();
-        await this.buildWithRunner(runner, buildVersion, target);
-        logger.info("Build completed!");
+        await this.buildWithRunner(target, repoDir, buildVersion, logger);
 
         if (target.platform === 'darwin') {
             const distPath = path.join(repoDir, 'dist');
@@ -208,19 +192,10 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         };
     }
 
-    protected getDockerImageName(): string {
-        return "element-desktop-dockerbuild-release";
-    }
-
-    protected fetchArgs(): string[] {
-        // This will fetch the Element release from GitHub that matches the version in element-desktop's package.json.
-        return ['-d', 'element.io/release'];
-    }
-
     private async buildWin(target: WindowsTarget, logger: Logger): Promise<void> {
         // We still check out the repo locally because we need package.json to write the electron builder config file,
         // so we check out the repo twice for windows: once locally and once on the VM...
-        const { repoDir, buildDirName } = await this.cloneRepo(target, this.desktopBranch, logger, this.desktopBranch);
+        const { repoDir, buildDirName } = await this.cloneRepo(target, this.gitBranch, logger);
 
         const buildVersion = JSON.parse(await fsProm.readFile(path.join(repoDir, 'package.json'), 'utf8')).version;
 
@@ -237,7 +212,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
         try {
             builder.appendScript('rd', buildDirName, '/s', '/q');
             // Clone element-desktop at tag / branch to build from, e.g. v1.6.0
-            builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName, '-b', this.desktopBranch);
+            builder.appendScript('git', 'clone', this.options.gitRepo, buildDirName, '-b', this.gitBranch);
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('xcopy', 'z:\\gnupg', 'gnupg', '/S', '/I', '/Y');
@@ -246,7 +221,8 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             builder.appendScript('call', 'yarn', 'run', 'build:native', '--target', target.id);
             // This will fetch the Element release from GitHub that matches the
             // version in element-desktop's package.json.
-            builder.appendScript('call', 'yarn', 'run', 'fetch', '-d', 'element.io\\release');
+            const fetchArgs = this.fetchArgs.map(a => a.replace(/\//g, "\\"));
+            builder.appendScript('call', 'yarn', 'run', 'fetch', ...fetchArgs);
             builder.appendScript(
                 'call', 'yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE,
             );

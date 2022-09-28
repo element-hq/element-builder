@@ -25,7 +25,7 @@ export default class GitRepo {
         return this.gitCmd('fetch');
     }
 
-    public clone(...args): Promise<string> {
+    public clone(...args: string[]): Promise<string> {
         return new Promise((resolve, reject) => {
             childProcess.execFile('git', ['clone', ...args], {}, (err, stdout) => {
                 if (err) {
@@ -37,7 +37,7 @@ export default class GitRepo {
         });
     }
 
-    private gitCmd(cmd: string, ...args): Promise<string> {
+    private gitCmd(cmd: string, ...args: string[]): Promise<string> {
         return new Promise((resolve, reject) => {
             childProcess.execFile('git', [cmd, ...args], {
                 cwd: this.path,

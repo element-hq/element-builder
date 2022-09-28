@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Target, TARGETS } from 'element-desktop/scripts/hak/target';
+import { Target, TargetId, TARGETS } from 'element-desktop/scripts/hak/target';
 import yargs from "yargs";
 import path from "path";
 import fs from "fs";
@@ -95,6 +95,26 @@ const args = yargs(process.argv).version(false).options({
         requiresArg: true,
         demandOption: false,
     },
+    "git-repo": {
+        type: "string",
+        description: "The git URL to clone element-desktop from",
+        default: "https://github.com/vector-im/element-desktop.git",
+        requiresArg: true,
+        demandOption: false,
+    },
+    "skip-rsync": {
+        type: "boolean",
+        description: "Whether to skip the rsync publishing step",
+        requiresArg: false,
+        demandOption: false,
+    },
+    "rsync-only": {
+        type: "boolean",
+        description: "Just synchronise artifacts",
+        requiresArg: false,
+        demandOption: false,
+        conflicts: ["version", "force", "debian-version", "skip-rsync"],
+    },
 }).parseSync();
 
 const lockFile = path.join(process.cwd(), "element-builder.lock");
@@ -108,12 +128,13 @@ process.on("beforeExit", () => {
 fs.writeFileSync(lockFile, process.pid?.toString());
 
 const options: Options = {
-    targets: args.targets.map(target => TARGETS[target]) as Target[],
+    targets: args.targets.map(target => TARGETS[target as TargetId]) as Target[],
     debianVersion: args.debianVersion,
     winVmName,
     winUsername,
     winPassword,
-    rsyncRoot: rsyncServer,
+    rsyncRoot: args.skipRsync ? undefined : rsyncServer,
+    gitRepo: args.gitRepo,
 };
 
 let builder: DesktopBuilder;
@@ -122,4 +143,9 @@ if (args.version) {
 } else {
     builder = new DesktopDevelopBuilder(options, args.force);
 }
-builder.start();
+
+if (args.rsyncOnly) {
+    builder.syncArtifacts(logger);
+} else {
+    builder.start();
+}

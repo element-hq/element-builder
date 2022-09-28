@@ -19,17 +19,10 @@ import * as path from 'path';
 import { Target, TargetId, WindowsTarget } from 'element-desktop/scripts/hak/target';
 
 import rootLogger, { LoggableError, Logger } from './logger';
-import { IRunner } from './runner';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, pushArtifacts, copyMatchingFiles, copyMatchingFile, rm } from './artifacts';
-import DesktopBuilder, {
-    DESKTOP_GIT_REPO,
-    ELECTRON_BUILDER_CFG_FILE,
-    Options,
-    Package,
-    PackageBuild,
-} from "./desktop_builder";
+import { getMatchingFilesInDir, copyMatchingFiles, copyMatchingFile, rm } from './artifacts';
+import DesktopBuilder, { ELECTRON_BUILDER_CFG_FILE, Options, Package, PackageBuild } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
 
@@ -110,10 +103,22 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         options: Options,
         private force = false,
     ) {
-        super(options);
+        super(options, {
+            fetchArgs: ["develop", "-d", "element.io/nightly"],
+            dockerImage: "element-desktop-dockerbuild-develop",
+        });
     }
 
-    public async start(): Promise<void> {
+    protected printInfo(): void {
+        console.log("Warming up Nightly builder");
+        super.printInfo();
+        if (this.force) {
+            console.log("Forcing an extra Nightly build");
+        }
+        console.warn("This process will not exit, continuing to produce Nightly builds");
+    }
+
+    public async startBuild(): Promise<void> {
         rootLogger.info("Starting Element Desktop nightly builder...");
         const logger = rootLogger.threadLogger();
         this.building = false;
@@ -138,8 +143,8 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         const toBuild: Target[] = [];
         for (const target of this.options.targets) {
             const nextBuildDue = getNextBuildTime(new Date(Math.max(
-                this.lastBuildTimes[target.id].time,
-                this.lastFailTimes[target.id],
+                this.lastBuildTimes[target.id]!.time,
+                this.lastFailTimes[target.id]!,
             )));
             //logger.debug("Next build due at " + nextBuildDue);
             if (this.force || (nextBuildDue.getTime() < Date.now())) {
@@ -158,11 +163,11 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
                 const jobReactionLogger = rootLogger.reactionLogger();
                 const logger = rootLogger.threadLogger();
                 try {
-                    const [thisBuildVersion, buildNumber] = getBuildVersion(this.lastBuildTimes[target.id]);
+                    const [thisBuildVersion, buildNumber] = getBuildVersion(this.lastBuildTimes[target.id]!);
                     await this.build(target, thisBuildVersion, logger);
-                    this.lastBuildTimes[target.id].time = Date.now();
-                    this.lastBuildTimes[target.id].number = buildNumber;
-                    await putLastBuild(target, this.lastBuildTimes[target.id], logger);
+                    this.lastBuildTimes[target.id]!.time = Date.now();
+                    this.lastBuildTimes[target.id]!.number = buildNumber;
+                    await putLastBuild(target, this.lastBuildTimes[target.id]!, logger);
                     jobReactionLogger.info("✅ Done!");
                 } catch (e) {
                     logger.error("Build failed!", e);
@@ -179,10 +184,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
                 }
             }
 
-            rootLogger.info(`Built packages for: ${toBuild.map(t => t.id).join(', ')} : pushing packages...`);
-            const reactionLogger = rootLogger.reactionLogger();
-            await pushArtifacts(this.pubDir, this.options.rsyncRoot, rootLogger);
-            reactionLogger.info("✅ Done!");
+            await this.pushArtifacts(toBuild);
         } catch (e) {
             rootLogger.error("Artifact sync failed!", e);
             // Mark all types as failed if artifact sync fails
@@ -208,7 +210,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             // We override a lot of the metadata for the nightly build
             extraMetadata: {
                 ...cfg.extraMetadata,
-                productName: cfg.extraMetadata.productName + " Nightly",
+                productName: cfg.extraMetadata!.productName + " Nightly",
                 name: "element-desktop-nightly",
                 version,
             },
@@ -238,21 +240,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
             );
         }
 
-        let runner: IRunner;
-        switch (target.platform) {
-            case 'darwin':
-                runner = this.makeMacRunner(repoDir, logger);
-                break;
-            case 'linux':
-                runner = this.makeLinuxRunner(repoDir, logger);
-                break;
-            default:
-                throw new Error(`Unexpected local target ${target.id}`);
-        }
-
-        await runner.setup();
-        await this.buildWithRunner(runner, buildVersion, target);
-        logger.info("Build completed!");
+        await this.buildWithRunner(target, repoDir, buildVersion, logger);
 
         if (target.platform === 'darwin') {
             const distPath = path.join(repoDir, 'dist');
@@ -290,14 +278,6 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
         };
     }
 
-    protected getDockerImageName(): string {
-        return "element-desktop-dockerbuild-develop";
-    }
-
-    protected fetchArgs(): string[] {
-        return ["develop", "-d", "element.io/nightly"];
-    }
-
     private async buildWin(target: WindowsTarget, buildVersion: string, logger: Logger): Promise<void> {
         // We still check out the repo locally because we need package.json to write the electron builder config file,
         // so we check out the repo twice for windows: once locally and once on the VM...
@@ -313,13 +293,14 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
 
         try {
             builder.appendScript('rd', buildDirName, '/s', '/q');
-            builder.appendScript('git', 'clone', DESKTOP_GIT_REPO, buildDirName);
+            builder.appendScript('git', 'clone', this.options.gitRepo, buildDirName);
             builder.appendScript('cd', buildDirName);
             builder.appendScript('copy', 'z:\\' + ELECTRON_BUILDER_CFG_FILE, ELECTRON_BUILDER_CFG_FILE);
             builder.appendScript('call', 'yarn', 'install');
             builder.appendScript('call', 'yarn', 'run', 'hak', 'check', '--target', target.id);
             builder.appendScript('call', 'yarn', 'run', 'build:native', '--target', target.id);
-            builder.appendScript('call', 'yarn', 'run', 'fetch', 'develop', '-d', 'element.io\\nightly');
+            const fetchArgs = this.fetchArgs.map(a => a.replace(/\//g, "\\"));
+            builder.appendScript('call', 'yarn', 'run', 'fetch', ...fetchArgs);
             builder.appendScript(
                 'call', 'yarn', 'build', `--${target.arch}`, '--config', ELECTRON_BUILDER_CFG_FILE,
             );
