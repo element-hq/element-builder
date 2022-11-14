@@ -46,7 +46,7 @@ export async function syncArtifacts(pubDir: string, options: Options, logger: Lo
 
     if (options.s3Bucket) {
         const args = [
-            's3', 'cp', `${pubDir}/`, `s3://${options.s3Bucket}/`, '--recursive', '--region=auto',
+            's3', 'sync', `${pubDir}/`, `s3://${options.s3Bucket}/`, '--delete', '--region=auto',
         ];
         if (options.s3EndpointUrl) {
             args.push('--endpoint-url', options.s3EndpointUrl);
