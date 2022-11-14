@@ -88,6 +88,8 @@ export interface Options {
     winUsername: string;
     winPassword: string;
     rsyncRoot?: string;
+    s3Bucket?: string;
+    s3EndpointUrl?: string;
     gitRepo: string;
 }
 
@@ -301,7 +303,7 @@ export default abstract class DesktopBuilder {
     }
 
     protected async pushArtifacts(targets: Target[]): Promise<void> {
-        if (this.options.rsyncRoot) {
+        if (this.options.rsyncRoot || this.options.s3Bucket) {
             rootLogger.info(`Built packages for: ${targets.map(t => t.id).join(', ')} : pushing packages...`);
             const reactionLogger = rootLogger.reactionLogger();
             await this.syncArtifacts(rootLogger.threadLogger());
@@ -312,8 +314,7 @@ export default abstract class DesktopBuilder {
     }
 
     public async syncArtifacts(logger: Logger): Promise<void> {
-        if (!this.options.rsyncRoot) return; // nothing to do
-        await syncArtifacts(this.pubDir, this.options.rsyncRoot, logger);
+        await syncArtifacts(this.pubDir, this.options, logger);
     }
 }
 

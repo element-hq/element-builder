@@ -38,6 +38,8 @@ const winUsername = process.env.RIOTBUILD_WIN_USERNAME;
 const winPassword = process.env.RIOTBUILD_WIN_PASSWORD;
 
 const rsyncServer = process.env.RIOTBUILD_RSYNC_ROOT;
+const s3Bucket = process.env.RIOTBUILD_S3_BUCKET;
+const s3EndpointUrl = process.env.RIOTBUILD_S3_ENDPOINT_URL;
 
 if (
     winVmName === undefined ||
@@ -48,11 +50,6 @@ if (
         "No windows credentials set: define RIOTBUILD_WIN_VMNAME, " +
         "RIOTBUILD_WIN_USERNAME and RIOTBUILD_WIN_PASSWORD",
     );
-    process.exit(1);
-}
-
-if (rsyncServer === undefined) {
-    console.error("rsync server not set: define RIOTBUILD_RSYNC_ROOT");
     process.exit(1);
 }
 
@@ -102,27 +99,38 @@ const args = yargs(process.argv).version(false).options({
         requiresArg: true,
         demandOption: false,
     },
-    "skip-rsync": {
+    "skip-sync": {
         type: "boolean",
-        description: "Whether to skip the rsync publishing step",
+        description: "Whether to skip the artifact publishing step, can be performed later using '--sync-only'",
         requiresArg: false,
         demandOption: false,
     },
-    "rsync-only": {
+    "sync-only": {
         type: "boolean",
         description: "Just synchronise artifacts",
         requiresArg: false,
         demandOption: false,
-        conflicts: ["version", "force", "debian-version", "skip-rsync"],
+        conflicts: ["version", "force", "debian-version", "skip-sync"],
     },
 }).parseSync();
+
+if (rsyncServer === undefined) {
+    console.warn("rsync server not set: define RIOTBUILD_RSYNC_ROOT");
+}
+if (s3Bucket === undefined) {
+    console.warn("S3 bucket not set: define RIOTBUILD_S3_BUCKET");
+}
+if (rsyncServer === undefined && s3Bucket === undefined && args.syncOnly) {
+    console.error("Cannot sync packages due to warnings above.");
+    process.exit(1);
+}
 
 const lockFile = path.join(process.cwd(), "element-builder.lock");
 if (fs.existsSync(lockFile)) {
     console.error("Lock file found, other instance likely already running!");
     process.exit(1);
 }
-process.on("beforeExit", () => {
+process.on("exit", () => {
     fs.rmSync(lockFile);
 });
 fs.writeFileSync(lockFile, process.pid?.toString());
@@ -133,7 +141,9 @@ const options: Options = {
     winVmName,
     winUsername,
     winPassword,
-    rsyncRoot: args.skipRsync ? undefined : rsyncServer,
+    rsyncRoot: args.skipSync ? undefined : rsyncServer,
+    s3Bucket: args.skipSync ? undefined : s3Bucket,
+    s3EndpointUrl,
     gitRepo: args.gitRepo,
 };
 
@@ -144,7 +154,7 @@ if (args.version) {
     builder = new DesktopDevelopBuilder(options, args.force);
 }
 
-if (args.rsyncOnly) {
+if (args.syncOnly) {
     builder.syncArtifacts(logger);
 } else {
     builder.start();

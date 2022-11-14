@@ -20,6 +20,7 @@ import rimraf from 'rimraf';
 
 import { Logger } from './logger';
 import { spawn } from "./spawn";
+import { Options } from "./desktop_builder";
 
 export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<string[]> {
     const ret: string[] = [];
@@ -34,11 +35,24 @@ export async function getMatchingFilesInDir(dir: string, exp: RegExp): Promise<s
     return ret;
 }
 
-export function syncArtifacts(pubDir: string, rsyncRoot: string, logger: Logger): Promise<void> {
+export async function syncArtifacts(pubDir: string, options: Options, logger: Logger): Promise<void> {
     logger.info("Syncing artifacts...");
-    return spawn('rsync', [
-        '-av', '--delete', '--delay-updates', pubDir + '/', rsyncRoot + 'packages.riot.im',
-    ]);
+
+    if (options.rsyncRoot) {
+        return spawn('rsync', [
+            '-av', '--delete', '--delay-updates', pubDir + '/', options.rsyncRoot + 'packages.riot.im',
+        ]);
+    }
+
+    if (options.s3Bucket) {
+        const args = [
+            's3', 'cp', `${pubDir}/*`, `s3://${options.s3Bucket}/`, '--recursive', '--region=auto',
+        ];
+        if (options.s3EndpointUrl) {
+            args.push('--endpoint-url', options.s3EndpointUrl);
+        }
+        return spawn('aws', args);
+    }
 }
 
 export function copyAndLog(src: string, dest: string, logger: Logger): Promise<void> {
