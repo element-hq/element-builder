@@ -40,13 +40,13 @@ export async function syncArtifacts(pubDir: string, options: Options, logger: Lo
 
     if (options.rsyncRoot) {
         await spawn('rsync', [
-            '-av', '--delete', '--delay-updates', pubDir + '/', options.rsyncRoot + 'packages.riot.im',
+            '-av', '--delete', '--delay-updates', `${pubDir}/`, options.rsyncRoot + 'packages.riot.im',
         ]);
     }
 
     if (options.s3Bucket) {
         const args = [
-            's3', 'cp', `${pubDir}/*`, `s3://${options.s3Bucket}/`, '--recursive', '--region=auto',
+            's3', 'cp', `${pubDir}/`, `s3://${options.s3Bucket}/`, '--recursive', '--region=auto',
         ];
         if (options.s3EndpointUrl) {
             args.push('--endpoint-url', options.s3EndpointUrl);
