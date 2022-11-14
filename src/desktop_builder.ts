@@ -132,10 +132,14 @@ export default abstract class DesktopBuilder {
             console.log("\t" + target.id);
         });
 
+        if (!this.options.rsyncRoot && !this.options.s3Bucket) {
+            console.log("Syncing artifacts has been disabled");
+        }
         if (this.options.rsyncRoot) {
             console.log(`Syncing artifacts to ${this.options.rsyncRoot}`);
-        } else {
-            console.log("Syncing artifacts has been disabled");
+        }
+        if (this.options.s3Bucket) {
+            console.log(`Syncing artifacts to s3://${this.options.s3Bucket}`);
         }
     }
 
