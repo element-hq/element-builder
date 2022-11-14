@@ -39,7 +39,7 @@ export async function syncArtifacts(pubDir: string, options: Options, logger: Lo
     logger.info("Syncing artifacts...");
 
     if (options.rsyncRoot) {
-        return spawn('rsync', [
+        await spawn('rsync', [
             '-av', '--delete', '--delay-updates', pubDir + '/', options.rsyncRoot + 'packages.riot.im',
         ]);
     }
@@ -51,7 +51,7 @@ export async function syncArtifacts(pubDir: string, options: Options, logger: Lo
         if (options.s3EndpointUrl) {
             args.push('--endpoint-url', options.s3EndpointUrl);
         }
-        return spawn('aws', args);
+        await spawn('aws', args);
     }
 }
 
