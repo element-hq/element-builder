@@ -168,7 +168,7 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             await fsProm.mkdir(targetInstallPath, { recursive: true });
             await fsProm.mkdir(targetUpdatePath, { recursive: true });
 
-            await copyMatchingFile(squirrelPath, targetInstallPath, /\.dmg$/, logger).then(f => (
+            await copyMatchingFile(distPath, targetInstallPath, /\.dmg$/, logger).then(f => (
                 updateSymlink(f, path.join(targetInstallPath, 'Element.dmg'), logger)
             ));
             await copyMatchingFiles(distPath, targetUpdatePath, /-mac.zip$/, logger);
