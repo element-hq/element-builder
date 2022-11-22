@@ -168,8 +168,9 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             await fsProm.mkdir(targetInstallPath, { recursive: true });
             await fsProm.mkdir(targetUpdatePath, { recursive: true });
 
-            // Be consistent with windows and don't bother putting the version number in the installer
-            await copyMatchingFile(distPath, targetInstallPath, /\.dmg$/, logger, 'Element.dmg');
+            await copyMatchingFile(squirrelPath, targetInstallPath, /\.dmg$/, logger).then(f => (
+                updateSymlink(f, path.join(targetInstallPath, 'Element.dmg'), logger)
+            ));
             await copyMatchingFiles(distPath, targetUpdatePath, /-mac.zip$/, logger);
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
