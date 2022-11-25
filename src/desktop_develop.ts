@@ -21,7 +21,7 @@ import { Target, TargetId, WindowsTarget } from 'element-desktop/scripts/hak/tar
 import rootLogger, { LoggableError, Logger } from './logger';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, copyMatchingFiles, copyMatchingFile, rm, updateSymlink } from './artifacts';
+import { getMatchingFilesInDir, copyMatchingFiles, copyMatchingFile, rm } from './artifacts';
 import DesktopBuilder, { ELECTRON_BUILDER_CFG_FILE, Options, Package, PackageBuild } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
