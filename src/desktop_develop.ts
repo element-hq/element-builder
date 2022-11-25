@@ -21,7 +21,7 @@ import { Target, TargetId, WindowsTarget } from 'element-desktop/scripts/hak/tar
 import rootLogger, { LoggableError, Logger } from './logger';
 import WindowsBuilder from './windows_builder';
 import { setDebVersion, addDeb } from './debian';
-import { getMatchingFilesInDir, copyMatchingFiles, copyMatchingFile, rm } from './artifacts';
+import { getMatchingFilesInDir, copyMatchingFiles, copyMatchingFile, rm, updateSymlink } from './artifacts';
 import DesktopBuilder, { ELECTRON_BUILDER_CFG_FILE, Options, Package, PackageBuild } from "./desktop_builder";
 
 const KEEP_BUILDS_NUM = 14; // we keep two week's worth of nightly builds
@@ -252,7 +252,10 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
 
             // Be consistent with windows and don't bother putting the version number in the installer
             await copyMatchingFile(distPath, targetInstallPath, /\.dmg$/, logger, 'Element Nightly.dmg');
-            await copyMatchingFiles(distPath, targetUpdatePath, /-mac.zip$/, logger);
+            await copyMatchingFile(distPath, targetUpdatePath, /-mac.zip$/, logger).then(async f => {
+                const updateUrl = `https://packages.element.io/nightly/update/macos/${f}`;
+                await this.writeDarwinReleaseFile(targetUpdatePath, buildVersion, updateUrl);
+            });
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);

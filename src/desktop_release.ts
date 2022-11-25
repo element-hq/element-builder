@@ -171,7 +171,10 @@ export default class DesktopReleaseBuilder extends DesktopBuilder {
             await copyMatchingFile(distPath, targetInstallPath, /\.dmg$/, logger).then(f => (
                 updateSymlink(f, path.join(targetInstallPath, 'Element.dmg'), logger)
             ));
-            await copyMatchingFiles(distPath, targetUpdatePath, /-mac.zip$/, logger);
+            await copyMatchingFile(distPath, targetUpdatePath, /-mac.zip$/, logger).then(async f => {
+                const updateUrl = `https://packages.element.io/desktop/update/macos/${f}`;
+                await this.writeDarwinReleaseFile(targetUpdatePath, buildVersion, updateUrl);
+            });
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
