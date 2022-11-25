@@ -29,7 +29,6 @@ import GitRepo from "./gitrepo";
 
 export const ELECTRON_BUILDER_CFG_FILE = 'electron-builder.json';
 const SQUIRREL_MAC_RELEASE_JSON = "releases.json";
-const SQUIRREL_MAC_LEGACY_JSON = "releases-legacy.json";
 
 interface File {
     from: string;
@@ -237,18 +236,18 @@ export default abstract class DesktopBuilder {
     }
 
     protected async writeDarwinReleaseFile(updatePath: string, version: string, url: string): Promise<void> {
-        const updateTo = { version, url };
-
         await fsProm.writeFile(
             path.join(updatePath, SQUIRREL_MAC_RELEASE_JSON),
             JSON.stringify({
                 currentRelease: version,
-                releases: [{ version, updateTo }],
+                releases: [{
+                    version,
+                    updateTo: {
+                        version,
+                        url,
+                    },
+                }],
             }, null, 4),
-        );
-        await fsProm.writeFile(
-            path.join(updatePath, SQUIRREL_MAC_LEGACY_JSON),
-            JSON.stringify(updateTo, null, 4),
         );
     }
 
