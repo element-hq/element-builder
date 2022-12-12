@@ -252,7 +252,10 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
 
             // Be consistent with windows and don't bother putting the version number in the installer
             await copyMatchingFile(distPath, targetInstallPath, /\.dmg$/, logger, 'Element Nightly.dmg');
-            await copyMatchingFiles(distPath, targetUpdatePath, /-mac.zip$/, logger);
+            await copyMatchingFile(distPath, targetUpdatePath, /-mac.zip$/, logger).then(async f => {
+                const updateUrl = `https://packages.element.io/nightly/update/macos/${encodeURIComponent(f)}`;
+                await this.writeDarwinReleaseFile(targetUpdatePath, buildVersion, updateUrl);
+            });
 
             const latestPath = path.join(this.appPubDir, 'update', 'macos', 'latest');
             logger.info('Write ' + buildVersion + ' -> ' + latestPath);
