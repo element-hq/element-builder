@@ -214,6 +214,13 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
                 name: "element-desktop-nightly",
                 version,
             },
+            linux: {
+                ...cfg.linux,
+                desktop: {
+                    ...cfg.linux.desktop,
+                    StartupWMClass: cfg.linux.desktop.StartupWMClass + "-nightly",
+                },
+            } 
             appId: "im.riot.nightly",
         };
     }
