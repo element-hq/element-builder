@@ -220,7 +220,7 @@ export default class DesktopDevelopBuilder extends DesktopBuilder {
                     ...cfg.linux.desktop,
                     StartupWMClass: cfg.linux.desktop.StartupWMClass + "-nightly",
                 },
-            } 
+            },
             appId: "im.riot.nightly",
         };
     }
